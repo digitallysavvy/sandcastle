@@ -149,7 +149,7 @@ describe("sandcastle CLI", () => {
 
     // No .sandcastle/ directory — run should fail
     try {
-      await runCli("run --container test-container", hostDir);
+      await runCli("run", hostDir);
       expect.fail("Expected command to fail");
     } catch (err: unknown) {
       const { stdout, stderr } = err as { stdout: string; stderr: string };

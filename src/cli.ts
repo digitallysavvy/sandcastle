@@ -1,5 +1,5 @@
 import { Command, Options } from "@effect/cli";
-import { Console, Effect, Layer } from "effect";
+import { Console, Effect } from "effect";
 import { execFile, spawn } from "node:child_process";
 import { access } from "node:fs/promises";
 import { readFile } from "node:fs/promises";
@@ -14,8 +14,8 @@ import {
 } from "./DockerLifecycle.js";
 import { scaffold } from "./InitService.js";
 import { orchestrate } from "./Orchestrator.js";
-import { Sandbox, SandboxError } from "./Sandbox.js";
-import { SandboxFactory } from "./SandboxFactory.js";
+import { SandboxError } from "./Sandbox.js";
+import { DockerSandboxFactory } from "./SandboxFactory.js";
 import { syncIn, syncOut } from "./SyncService.js";
 import { resolveTokens } from "./TokenResolver.js";
 
@@ -269,12 +269,11 @@ const detectRepoFullName = (cwd: string): Effect.Effect<string, SandboxError> =>
 const runCommand = Command.make(
   "run",
   {
-    container: containerOption,
     iterations: iterationsOption,
     imageName: imageNameOption,
     promptFile: promptFileOption,
   },
-  ({ container, iterations, promptFile }) =>
+  ({ iterations, imageName, promptFile }) =>
     Effect.gen(function* () {
       const hostRepoDir = process.cwd();
       yield* requireConfigDir(hostRepoDir);
@@ -284,6 +283,13 @@ const runCommand = Command.make(
 
       // Detect repo full name for issue fetching
       const repoFullName = yield* detectRepoFullName(hostRepoDir);
+
+      // Resolve auth tokens
+      const tokens = yield* Effect.tryPromise({
+        try: () => resolveTokens(hostRepoDir),
+        catch: (e) =>
+          new SandboxError("run", `${e instanceof Error ? e.message : e}`),
+      });
 
       // Load prompt — default to .sandcastle/prompt.md relative to cwd
       const promptPath =
@@ -307,17 +313,15 @@ const runCommand = Command.make(
 
       yield* Console.log(`=== SANDCASTLE RUN ===`);
       yield* Console.log(`Repo:       ${repoFullName}`);
-      yield* Console.log(`Container:  ${container}`);
+      yield* Console.log(`Image:      ${imageName}`);
       yield* Console.log(`Iterations: ${resolvedIterations}`);
       yield* Console.log(``);
 
-      const sandboxLayer = DockerSandbox.layer(container);
-      const factoryLayer = Layer.succeed(SandboxFactory, {
-        withSandbox: <A, E, R>(effect: Effect.Effect<A, E, R | Sandbox>) =>
-          effect.pipe(
-            Effect.provide(sandboxLayer),
-          ) as Effect.Effect<A, E, Exclude<R, Sandbox>>,
-      });
+      const factoryLayer = DockerSandboxFactory.layer(
+        imageName,
+        tokens.oauthToken,
+        tokens.ghToken,
+      );
 
       const result = yield* orchestrate({
         hostRepoDir,
