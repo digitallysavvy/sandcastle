@@ -1,3 +1,10 @@
 {
-  "defaultIterations": 20
+  "defaultIterations": 20,
+  "hooks": {
+    "onSandboxReady": [
+      {
+        "command": "npm install && npm run build"
+      }
+    ]
+  }
 }
