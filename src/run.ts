@@ -41,7 +41,7 @@ export interface FileDisplayStartupOptions {
 export const printFileDisplayStartup = (
   options: FileDisplayStartupOptions,
 ): void => {
-  const name = options.agentName ?? "agent";
+  const name = options.agentName ?? "Agent";
   const label = styleText("bold", `[${name}]`);
   const branchPart = options.branch ? ` on branch ${options.branch}` : "";
   const relativeLogPath = path.relative(process.cwd(), options.logPath);
@@ -217,7 +217,7 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
       ? (() => {
           printFileDisplayStartup({
             logPath: resolvedLogging.path,
-            agentName,
+            agentName: options.name,
             branch: resolvedBranch,
           });
           return Layer.provide(

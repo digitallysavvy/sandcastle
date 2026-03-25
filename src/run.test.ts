@@ -40,12 +40,12 @@ describe("printFileDisplayStartup", () => {
     expect(consoleSpy).toHaveBeenCalled();
   });
 
-  it("shows '[agent] Started' when no name is provided", () => {
+  it("shows '[Agent] Started' when no name is provided", () => {
     printFileDisplayStartup({
       logPath: "/project/.sandcastle/logs/main.log",
     });
     const allOutput = consoleSpy.mock.calls.flat().join(" ");
-    expect(allOutput).toContain("[agent]");
+    expect(allOutput).toContain("[Agent]");
     expect(allOutput).toContain("Started");
   });
 
