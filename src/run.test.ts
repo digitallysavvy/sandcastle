@@ -199,4 +199,10 @@ describe("buildLogFilename", () => {
       buildLogFilename("sandcastle/20260325-142719", "feature/my-work"),
     ).toBe("feature-my-work-sandcastle-20260325-142719.log");
   });
+
+  it("includes agent name when branch contains agent segment", () => {
+    expect(
+      buildLogFilename("sandcastle/claude-code/20260325-142719", "main"),
+    ).toBe("main-sandcastle-claude-code-20260325-142719.log");
+  });
 });

@@ -12,6 +12,7 @@ import {
   generateTempBranchName,
   pruneStale,
   remove,
+  sanitizeAgentName,
 } from "./WorktreeManager.js";
 
 const execAsync = promisify(exec);
@@ -64,6 +65,24 @@ const runFail = <A, E>(effect: Effect.Effect<A, E, FileSystem.FileSystem>) =>
     ) as Effect.Effect<E, never>,
   );
 
+describe("sanitizeAgentName", () => {
+  it("lowercases the name", () => {
+    expect(sanitizeAgentName("Claude-Code")).toBe("claude-code");
+  });
+
+  it("replaces non-alphanumeric characters with hyphens", () => {
+    expect(sanitizeAgentName("my agent!")).toBe("my-agent-");
+  });
+
+  it("passes through a typical agent name unchanged", () => {
+    expect(sanitizeAgentName("claude-code")).toBe("claude-code");
+  });
+
+  it("handles names with dots and slashes", () => {
+    expect(sanitizeAgentName("my/agent.v2")).toBe("my-agent-v2");
+  });
+});
+
 describe("generateTempBranchName", () => {
   it("returns a string in sandcastle/<YYYYMMDD-HHMMSS> format", () => {
     const name = generateTempBranchName();
@@ -75,6 +94,16 @@ describe("generateTempBranchName", () => {
     await new Promise((resolve) => setTimeout(resolve, 1100));
     const b = generateTempBranchName();
     expect(a).not.toBe(b);
+  });
+
+  it("includes sanitized agent name when provided", () => {
+    const name = generateTempBranchName("claude-code");
+    expect(name).toMatch(/^sandcastle\/claude-code\/\d{8}-\d{6}$/);
+  });
+
+  it("sanitizes the agent name in the branch", () => {
+    const name = generateTempBranchName("My Agent!");
+    expect(name).toMatch(/^sandcastle\/my-agent-\/\d{8}-\d{6}$/);
   });
 });
 
@@ -98,6 +127,18 @@ describe("WorktreeManager.create", () => {
     const repoDir = await setupRepo();
     const { branch } = await run(create(repoDir));
     expect(branch).toMatch(/^sandcastle\/\d{8}-\d{6}$/);
+  });
+
+  it("includes agent name in branch when agentName is specified", async () => {
+    const repoDir = await setupRepo();
+    const { branch } = await run(create(repoDir, { agentName: "claude-code" }));
+    expect(branch).toMatch(/^sandcastle\/claude-code\/\d{8}-\d{6}$/);
+  });
+
+  it("includes agent name in worktree directory when agentName is specified", async () => {
+    const repoDir = await setupRepo();
+    const { path } = await run(create(repoDir, { agentName: "claude-code" }));
+    expect(path).toMatch(/sandcastle-claude-code-\d{8}-\d{6}$/);
   });
 
   it("checks out the specified branch when branch is given", async () => {

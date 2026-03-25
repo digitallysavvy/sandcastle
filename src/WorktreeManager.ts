@@ -13,6 +13,10 @@ const formatTimestamp = (date: Date): string => {
   );
 };
 
+/** Sanitize an agent name for use in branch names and directory names. */
+export const sanitizeAgentName = (name: string): string =>
+  name.toLowerCase().replace(/[^a-z0-9]/g, "-");
+
 const execGit = (
   args: string[],
   cwd: string,
@@ -33,9 +37,18 @@ const execGit = (
     });
   });
 
-/** Generates a temporary branch name in the form `sandcastle/<YYYYMMDD-HHMMSS>`. */
-export const generateTempBranchName = (): string =>
-  `sandcastle/${formatTimestamp(new Date())}`;
+/**
+ * Generates a temporary branch name.
+ * When agentName is provided: `sandcastle/<sanitized-agent>/<YYYYMMDD-HHMMSS>`.
+ * Otherwise: `sandcastle/<YYYYMMDD-HHMMSS>`.
+ */
+export const generateTempBranchName = (agentName?: string): string => {
+  const ts = formatTimestamp(new Date());
+  if (agentName) {
+    return `sandcastle/${sanitizeAgentName(agentName)}/${ts}`;
+  }
+  return `sandcastle/${ts}`;
+};
 
 /** Returns the name of the currently checked-out branch in the given repo directory. */
 export const getCurrentBranch = (
@@ -96,7 +109,7 @@ const listWorktrees = (
  */
 export const create = (
   repoDir: string,
-  opts?: { branch?: string },
+  opts?: { branch?: string; agentName?: string },
 ): Effect.Effect<WorktreeInfo, WorktreeError, FileSystem.FileSystem> =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
@@ -113,8 +126,14 @@ export const create = (
       worktreeName = branch.replace(/\//g, "-");
     } else {
       const timestamp = formatTimestamp(new Date());
-      branch = `sandcastle/${timestamp}`;
-      worktreeName = `sandcastle-${timestamp}`;
+      if (opts?.agentName) {
+        const sanitized = sanitizeAgentName(opts.agentName);
+        branch = `sandcastle/${sanitized}/${timestamp}`;
+        worktreeName = `sandcastle-${sanitized}-${timestamp}`;
+      } else {
+        branch = `sandcastle/${timestamp}`;
+        worktreeName = `sandcastle-${timestamp}`;
+      }
     }
 
     const worktreePath = join(worktreesDir, worktreeName);

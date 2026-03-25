@@ -109,7 +109,9 @@ describe("WorktreeDockerSandboxFactory", () => {
       }).pipe(Effect.provide(makeLayer())),
     );
 
-    expect(mockCreate).toHaveBeenCalledWith(hostRepoDir);
+    expect(mockCreate).toHaveBeenCalledWith(hostRepoDir, {
+      agentName: undefined,
+    });
   });
 
   it("creates a worktree before starting the container", async () => {
@@ -120,7 +122,9 @@ describe("WorktreeDockerSandboxFactory", () => {
       }).pipe(Effect.provide(makeLayer())),
     );
 
-    expect(mockCreate).toHaveBeenCalledWith(hostRepoDir);
+    expect(mockCreate).toHaveBeenCalledWith(hostRepoDir, {
+      agentName: undefined,
+    });
     // Worktree creation happened before the docker run call
     const runCallIndex = mockExecFile.mock.calls.findIndex(
       (c) => (c[1] as string[])[0] === "run",
@@ -208,7 +212,9 @@ describe("WorktreeDockerSandboxFactory", () => {
       }).pipe(Effect.provide(makeLayer())),
     );
 
-    expect(mockCreate).toHaveBeenCalledWith(hostRepoDir);
+    expect(mockCreate).toHaveBeenCalledWith(hostRepoDir, {
+      agentName: undefined,
+    });
   });
 
   it("removes worktree even if the effect fails", async () => {

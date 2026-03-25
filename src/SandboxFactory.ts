@@ -263,6 +263,8 @@ export class WorktreeSandboxConfig extends Context.Tag("WorktreeSandboxConfig")<
     readonly hostRepoDir: string;
     /** When specified, the worktree checks out this branch. Otherwise a temp branch is created. */
     readonly branch?: string;
+    /** When specified, the agent name is included in the auto-generated branch and worktree names. */
+    readonly agentName?: string;
   }
 >() {}
 
@@ -293,7 +295,7 @@ export const WorktreeDockerSandboxFactory = {
   layer: Layer.effect(
     SandboxFactory,
     Effect.gen(function* () {
-      const { imageName, env, hostRepoDir, branch } =
+      const { imageName, env, hostRepoDir, branch, agentName } =
         yield* WorktreeSandboxConfig;
       const fileSystem = yield* FileSystem.FileSystem;
       return {
@@ -323,7 +325,7 @@ export const WorktreeDockerSandboxFactory = {
                 Effect.andThen(
                   branch
                     ? WorktreeManager.create(hostRepoDir, { branch })
-                    : WorktreeManager.create(hostRepoDir),
+                    : WorktreeManager.create(hostRepoDir, { agentName }),
                 ),
               )
               .pipe(Effect.provideService(FileSystem.FileSystem, fileSystem))
