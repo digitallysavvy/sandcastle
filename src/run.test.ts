@@ -299,4 +299,22 @@ describe("buildLogFilename", () => {
       buildLogFilename("sandcastle/claude-code/20260325-142719", "main"),
     ).toBe("main-sandcastle-claude-code-20260325-142719.log");
   });
+
+  it("appends run name when name is provided", () => {
+    expect(buildLogFilename("main", undefined, "implementer")).toBe(
+      "main-implementer.log",
+    );
+  });
+
+  it("appends run name after target branch prefix", () => {
+    expect(
+      buildLogFilename("sandcastle/20260325-142719", "main", "reviewer"),
+    ).toBe("main-sandcastle-20260325-142719-reviewer.log");
+  });
+
+  it("sanitizes run name for filename use", () => {
+    expect(buildLogFilename("main", undefined, "my review agent")).toBe(
+      "main-my-review-agent.log",
+    );
+  });
 });

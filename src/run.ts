@@ -68,16 +68,21 @@ export const defaultImageName = (repoDir: string): string => {
  * with the sanitized target branch name so developers can identify which
  * branch the run was targeting: `<targetBranch>-<resolvedBranch>.log`
  * When no targetBranch, uses just the resolved branch: `<resolvedBranch>.log`
+ * When a name is provided, appends it to avoid collisions in multi-agent workflows.
  */
 export const buildLogFilename = (
   resolvedBranch: string,
   targetBranch?: string,
+  name?: string,
 ): string => {
   const sanitized = sanitizeBranchForFilename(resolvedBranch);
+  const nameSuffix = name
+    ? `-${name.toLowerCase().replace(/[^a-z0-9_.-]/g, "-")}`
+    : "";
   if (targetBranch) {
-    return `${sanitizeBranchForFilename(targetBranch)}-${sanitized}.log`;
+    return `${sanitizeBranchForFilename(targetBranch)}-${sanitized}${nameSuffix}.log`;
   }
-  return `${sanitized}.log`;
+  return `${sanitized}${nameSuffix}.log`;
 };
 
 export interface RunSummaryRowsOptions {
@@ -237,7 +242,7 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
       hostRepoDir,
       ".sandcastle",
       "logs",
-      buildLogFilename(resolvedBranch, targetBranch),
+      buildLogFilename(resolvedBranch, targetBranch, options.name),
     ),
   };
   const displayLayer =
