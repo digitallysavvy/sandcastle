@@ -36,49 +36,13 @@ describe("sandcastle CLI", () => {
     expect(stdout).toContain("build-image");
     expect(stdout).toContain("remove-image");
     expect(stdout).toContain("init");
-    expect(stdout).toContain("run");
+    expect(stdout).not.toContain("run");
     expect(stdout).toContain("interactive");
     // Old command names should not be exposed
     expect(stdout).not.toContain("setup-sandbox");
     expect(stdout).not.toContain("cleanup-sandbox");
     expect(stdout).not.toContain("sync-in");
     expect(stdout).not.toContain("sync-out");
-  });
-
-  it("run --help shows --prompt-arg flag", async () => {
-    const { stdout } = await runCli("run --help", process.cwd());
-    expect(stdout).toContain("--prompt-arg");
-  });
-
-  it("run --help shows --completion-signal flag", async () => {
-    const { stdout } = await runCli("run --help", process.cwd());
-    expect(stdout).toContain("--completion-signal");
-  });
-
-  it("run --help shows --timeout flag", async () => {
-    const { stdout } = await runCli("run --help", process.cwd());
-    expect(stdout).toContain("--timeout");
-  });
-
-  it("run --help shows --name flag", async () => {
-    const { stdout } = await runCli("run --help", process.cwd());
-    expect(stdout).toContain("--name");
-  });
-
-  it("run command errors when .sandcastle/ is missing", async () => {
-    const hostDir = await mkdtemp(join(tmpdir(), "cli-host-"));
-    await initRepo(hostDir);
-    await commitFile(hostDir, "hello.txt", "hello", "initial commit");
-
-    // No .sandcastle/ directory — run should fail
-    try {
-      await runCli("run", hostDir);
-      expect.fail("Expected command to fail");
-    } catch (err: unknown) {
-      const { stdout, stderr } = err as { stdout: string; stderr: string };
-      const output = stdout + stderr;
-      expect(output).toContain("No .sandcastle/ found");
-    }
   });
 
   it("interactive command errors when .sandcastle/ is missing", async () => {

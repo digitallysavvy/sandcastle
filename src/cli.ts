@@ -1,17 +1,17 @@
 import { Command, Options } from "@effect/cli";
 import { FileSystem } from "@effect/platform";
 import { NodeFileSystem } from "@effect/platform-node";
-import { Effect, HashMap, Layer } from "effect";
+import { Effect, Layer } from "effect";
 import * as clack from "@clack/prompts";
 import { spawn } from "node:child_process";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { styleText } from "node:util";
 import { readConfig } from "./Config.js";
 import { Display } from "./Display.js";
 import { DEFAULT_MODEL } from "./Orchestrator.js";
 import { buildImage, removeImage } from "./DockerLifecycle.js";
 import { scaffold, listTemplates, getNextStepsLines } from "./InitService.js";
-import { DEFAULT_MAX_ITERATIONS, defaultImageName, run } from "./run.js";
+import { defaultImageName } from "./run.js";
 import { getAgentProvider } from "./AgentProvider.js";
 import { AgentError, ConfigDirError, InitError } from "./errors.js";
 import {
@@ -235,27 +235,7 @@ const removeImageCommand = Command.make(
     }),
 );
 
-// --- Run command ---
-
-const iterationsOption = Options.integer("iterations").pipe(
-  Options.withDescription("Number of agent iterations to run"),
-  Options.optional,
-);
-
-const promptOption = Options.text("prompt").pipe(
-  Options.withDescription("Inline prompt string for the agent"),
-  Options.optional,
-);
-
-const promptFileOption = Options.file("prompt-file").pipe(
-  Options.withDescription("Path to the prompt file for the agent"),
-  Options.optional,
-);
-
-const branchOption = Options.text("branch").pipe(
-  Options.withDescription("Target branch name for sandbox work"),
-  Options.optional,
-);
+// --- Interactive command ---
 
 const modelOption = Options.text("model").pipe(
   Options.withDescription(
@@ -263,127 +243,6 @@ const modelOption = Options.text("model").pipe(
   ),
   Options.optional,
 );
-
-const promptArgOption = Options.keyValueMap("prompt-arg").pipe(
-  Options.withDescription("Prompt argument as KEY=VALUE (repeatable)"),
-  Options.optional,
-);
-
-const completionSignalOption = Options.text("completion-signal").pipe(
-  Options.withDescription(
-    'Custom string to detect task completion (default: "<promise>COMPLETE</promise>")',
-  ),
-  Options.optional,
-);
-
-const timeoutOption = Options.integer("timeout").pipe(
-  Options.withDescription(
-    "Timeout in seconds for the entire run (default: 1200, i.e. 20 minutes)",
-  ),
-  Options.optional,
-);
-
-const nameOption = Options.text("name").pipe(
-  Options.withDescription("Optional name for the run, shown in log output"),
-  Options.optional,
-);
-
-const runCommand = Command.make(
-  "run",
-  {
-    iterations: iterationsOption,
-    imageName: imageNameOption,
-    prompt: promptOption,
-    promptFile: promptFileOption,
-    branch: branchOption,
-    model: modelOption,
-    agent: agentOption,
-    promptArgs: promptArgOption,
-    completionSignal: completionSignalOption,
-    timeout: timeoutOption,
-    name: nameOption,
-  },
-  ({
-    iterations,
-    imageName: imageNameFlag,
-    prompt,
-    promptFile,
-    branch,
-    model,
-    agent,
-    promptArgs,
-    completionSignal,
-    timeout,
-    name,
-  }) =>
-    Effect.gen(function* () {
-      const d = yield* Display;
-      const hostRepoDir = process.cwd();
-      yield* requireConfigDir(hostRepoDir);
-
-      // Read config to resolve iterations: CLI flag > config > default (1)
-      const config = yield* readConfig(hostRepoDir);
-      const resolvedIterations =
-        iterations._tag === "Some"
-          ? iterations.value
-          : (config.defaultMaxIterations ?? DEFAULT_MAX_ITERATIONS);
-
-      const resolvedBranch = branch._tag === "Some" ? branch.value : undefined;
-      const resolvedModel = model._tag === "Some" ? model.value : undefined;
-      const resolvedAgent = agent._tag === "Some" ? agent.value : undefined;
-      const resolvedImageName = resolveImageName(
-        imageNameFlag,
-        hostRepoDir,
-        config,
-      );
-
-      const resolvedPromptArgs =
-        promptArgs._tag === "Some"
-          ? HashMap.toEntries(promptArgs.value).reduce(
-              (acc, [k, v]) => {
-                acc[k] = v;
-                return acc;
-              },
-              {} as Record<string, string>,
-            )
-          : undefined;
-
-      const resolvedCompletionSignal =
-        completionSignal._tag === "Some" ? completionSignal.value : undefined;
-
-      const resolvedTimeout =
-        timeout._tag === "Some" ? timeout.value : undefined;
-
-      const resolvedName = name._tag === "Some" ? name.value : undefined;
-
-      const result = yield* Effect.tryPromise({
-        try: () =>
-          run({
-            prompt: prompt._tag === "Some" ? prompt.value : undefined,
-            promptFile:
-              promptFile._tag === "Some"
-                ? resolve(promptFile.value)
-                : undefined,
-            maxIterations: resolvedIterations,
-            branch: resolvedBranch,
-            model: resolvedModel,
-            agent: resolvedAgent,
-            imageName: resolvedImageName,
-            promptArgs: resolvedPromptArgs,
-            logging: { type: "stdout" },
-            completionSignal: resolvedCompletionSignal,
-            timeoutSeconds: resolvedTimeout,
-            name: resolvedName,
-          }),
-        catch: (e) =>
-          new AgentError({
-            message: `${e instanceof Error ? e.message : e}`,
-          }),
-      });
-    }),
-);
-
-// --- Interactive command ---
 
 const interactiveSession = (options: {
   hostRepoDir: string;
@@ -532,7 +391,6 @@ export const sandcastle = rootCommand.pipe(
     initCommand,
     buildImageCommand,
     removeImageCommand,
-    runCommand,
     interactiveCommand,
   ]),
 );
