@@ -72,7 +72,7 @@ Rebuilds the Docker image from an existing `.sandcastle/` directory. Use this af
 
 ### `sandcastle interactive`
 
-Opens an interactive Claude Code session inside the sandbox. Syncs your repo in, launches Claude with TTY passthrough, and syncs changes back when you exit.
+Opens an interactive Claude Code session inside the sandbox. Creates a worktree, bind-mounts it into the sandbox, launches Claude with TTY passthrough, and merges commits back when you exit.
 
 | Option         | Required | Default            | Description                |
 | -------------- | -------- | ------------------ | -------------------------- |
@@ -106,7 +106,7 @@ The prompt is resolved from one of three sources (in order of precedence):
 
 Use `` !`command` `` expressions in your prompt to pull in dynamic context. Each expression is replaced with the command's stdout before the prompt is sent to the agent.
 
-Commands run **inside the sandbox** after sync-in and `onSandboxReady` hooks, so they see the same repo state the agent sees (including installed dependencies).
+Commands run **inside the sandbox** after the worktree is mounted and `onSandboxReady` hooks complete, so they see the same repo state the agent sees (including installed dependencies).
 
 ```markdown
 # Open issues
@@ -234,7 +234,7 @@ The `.sandcastle/Dockerfile` controls the sandbox environment. The default templ
 When customizing the Dockerfile, ensure you keep:
 
 - A non-root user (the default `agent` user) for Claude to run as
-- `git` (required for sync-in/sync-out)
+- `git` (required for commits and branch operations)
 - `gh` (required for issue fetching)
 - Claude Code CLI installed and on PATH
 
@@ -244,11 +244,11 @@ Add your project-specific dependencies (e.g., language runtimes, build tools) to
 
 Hooks are arrays of `{ "command": "..." }` objects executed sequentially inside the sandbox. If any command exits with a non-zero code, execution stops immediately with an error.
 
-| Hook             | When it runs            | Working directory      |
-| ---------------- | ----------------------- | ---------------------- |
-| `onSandboxReady` | After sync-in completes | Sandbox repo directory |
+| Hook             | When it runs               | Working directory      |
+| ---------------- | -------------------------- | ---------------------- |
+| `onSandboxReady` | After the sandbox is ready | Sandbox repo directory |
 
-**`onSandboxReady`** runs after the repo is synced in. Use it for dependency installation or build steps (e.g., `npm install`).
+**`onSandboxReady`** runs after the worktree is mounted into the sandbox. Use it for dependency installation or build steps (e.g., `npm install`).
 
 Pass hooks programmatically via `run()`:
 
@@ -263,12 +263,14 @@ await run({
 
 ## How it works
 
-Sandcastle uses git primitives for reliable repo synchronization:
+Sandcastle uses a worktree-based architecture for direct, zero-sync agent execution:
 
-- **Sync-in**: Creates a `git bundle` on your host capturing all refs (including unpushed commits), copies it into the sandbox, and unpacks it. The sandbox always matches your host's committed state.
-- **Sync-out**: Runs `git format-patch` inside the sandbox to extract new commits, copies the patches to your host, and applies them with `git am --3way`. Uncommitted changes (staged, unstaged, and untracked files) are also captured.
+- **Worktree**: Sandcastle creates a git worktree on the host at `.sandcastle/worktrees/`. The worktree is a real checkout of your repo — no copying or bundling required.
+- **Bind-mount**: The worktree directory is bind-mounted into the sandbox container as the agent's working directory. The agent writes directly to the host filesystem through the mount.
+- **No sync needed**: Because the agent writes directly to the host filesystem, there are no sync-in or sync-out operations. Commits made by the agent are immediately visible on the host.
+- **Merge back**: After the run completes, the temp worktree branch is fast-forward merged back to the target branch, and the worktree is cleaned up.
 
-This approach avoids GitHub round-trips and produces clean, replayable commit history.
+This approach eliminates the complexity of patch-based sync and ensures the agent always works with the exact repo state on the host.
 
 ## Development
 
