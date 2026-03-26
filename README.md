@@ -115,6 +115,17 @@ console.log(result.commits); // array of { sha } for commits created
 console.log(result.branch); // target branch name
 ```
 
+## How it works
+
+Sandcastle uses a worktree-based architecture for direct, zero-sync agent execution:
+
+- **Worktree**: Sandcastle creates a git worktree on the host at `.sandcastle/worktrees/`. The worktree is a real checkout of your repo — no copying or bundling required.
+- **Bind-mount**: The worktree directory is bind-mounted into the sandbox container as the agent's working directory. The agent writes directly to the host filesystem through the mount.
+- **No sync needed**: Because the agent writes directly to the host filesystem, there are no sync-in or sync-out operations. Commits made by the agent are immediately visible on the host.
+- **Merge back**: After the run completes, the temp worktree branch is fast-forward merged back to the target branch, and the worktree is cleaned up.
+
+This approach eliminates the complexity of patch-based sync and ensures the agent always works with the exact repo state on the host.
+
 ## Prompts
 
 Sandcastle uses a flexible prompt system. You write the prompt, and the engine executes it — no opinions about workflow, task management, or context sources are imposed.
@@ -317,17 +328,6 @@ await run({
   // ...
 });
 ```
-
-## How it works
-
-Sandcastle uses a worktree-based architecture for direct, zero-sync agent execution:
-
-- **Worktree**: Sandcastle creates a git worktree on the host at `.sandcastle/worktrees/`. The worktree is a real checkout of your repo — no copying or bundling required.
-- **Bind-mount**: The worktree directory is bind-mounted into the sandbox container as the agent's working directory. The agent writes directly to the host filesystem through the mount.
-- **No sync needed**: Because the agent writes directly to the host filesystem, there are no sync-in or sync-out operations. Commits made by the agent are immediately visible on the host.
-- **Merge back**: After the run completes, the temp worktree branch is fast-forward merged back to the target branch, and the worktree is cleaned up.
-
-This approach eliminates the complexity of patch-based sync and ensures the agent always works with the exact repo state on the host.
 
 ## Development
 
