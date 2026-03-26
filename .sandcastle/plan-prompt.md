@@ -22,6 +22,8 @@ An issue is **unblocked** if it has zero blocking dependencies on other open iss
 
 For each unblocked issue, assign a branch name using the format `sandcastle/issue-{number}-{slug}`.
 
+If the issue appears to be a PRD and it has implementation issues which link to it, the PRD cannot be worked on.
+
 # OUTPUT
 
 Output your plan as a JSON object wrapped in `<plan>` tags:
