@@ -29,6 +29,9 @@
 | **Prompt argument substitution** | The preprocessing step that replaces all `{{KEY}}` placeholders in a **prompt** with values from the **prompt arguments** map        | "template expansion", "interpolation", "variable substitution"                           |
 | **Prompt expansion**             | The preprocessing step that finds and evaluates all **shell expressions** in a **prompt** before passing it to the agent             | "prompt preprocessing" (too generic), "command expansion"                                |
 | **Shell expression**             | A `` !`command` `` marker in a **prompt** that evaluates a shell command inside the sandbox and is replaced with its stdout          | "command" (overloaded — collides with hook commands), "inline command", "prompt command" |
+| **Built-in prompt argument**     | A **prompt argument** that Sandcastle injects automatically — not provided by the user via `promptArgs`                              | "system variable", "auto argument", "default prompt argument"                            |
+| **Source branch**                | The branch the agent works on inside the **worktree** — either a temp branch or an explicitly provided `branch`                      | "working branch", "agent branch"                                                         |
+| **Target branch**                | The **host**'s active branch at `run()` time — the branch Sandcastle merges into when using a temp branch                            | "base branch", "destination branch", "merge target"                                      |
 
 ## Project structure
 
@@ -72,6 +75,10 @@
 - **Prompt argument substitution** runs before **prompt expansion**, so **prompt arguments** can inject values into **shell expressions**
 - A `{{KEY}}` placeholder with no matching **prompt argument** is an error; unused **prompt arguments** produce a warning
 - A **prompt** may contain zero or more **prompt arguments** and/or **shell expressions**; each substitution step is skipped if there are no matches
+- Sandcastle injects **built-in prompt arguments** `{{SOURCE_BRANCH}}` and `{{TARGET_BRANCH}}` automatically — these are available in any **prompt** without the user passing them via `promptArgs`
+- If a user passes `SOURCE_BRANCH` or `TARGET_BRANCH` in `promptArgs`, **prompt argument substitution** fails with an error — **built-in prompt arguments** cannot be overridden
+- **Target branch** defaults to the **host**'s current branch at `run()` time (via `git rev-parse --abbrev-ref HEAD`)
+- **Source branch** is either the explicitly provided `branch` option or a Sandcastle-generated temp branch
 - **Log-to-file mode** is the default for programmatic use via `run()`; **terminal mode** is used when passing `logging: { type: 'stdout' }` to `run()`
 - In **log-to-file mode**, Sandcastle writes a **run log** to `.sandcastle/logs/` and prints a `tail -f` command to the console so the developer can follow along
 - In **terminal mode**, Sandcastle renders spinners, styled status messages, and summaries directly in the terminal
@@ -102,6 +109,14 @@
 
 > **Domain expert:** "Correct. By the time the **prompt** reaches the **agent**, both substitution steps have run and replaced everything with concrete values."
 
+> **Dev:** "My reviewer agent diffs against `main`, but I'm working from a feature branch. The diff is huge."
+
+> **Domain expert:** "Use the **built-in prompt argument** `{{TARGET_BRANCH}}` in your **prompt**. It resolves to the **host**'s active branch at `run()` time — so if you kick off Sandcastle from `feature/auth`, the reviewer diffs against `feature/auth`, not `main`."
+
+> **Dev:** "Can I override `{{TARGET_BRANCH}}` in `promptArgs`?"
+
+> **Domain expert:** "No — **built-in prompt arguments** can't be overridden. If you pass `TARGET_BRANCH` in `promptArgs`, **prompt argument substitution** fails with an error. Use a different key name if you need a custom value."
+
 ## Flagged ambiguities
 
 - **"Docker sandbox"** — In this project, **sandbox** refers to our isolated environment concept. It is NOT Claude Code's built-in `docker sandbox` CLI feature. Use **sandbox** for ours; spell out "Claude's Docker sandbox CLI" for the built-in feature.
@@ -112,3 +127,5 @@
 - **"Command"** — Heavily overloaded: hook commands, shell commands, CLI commands, **shell expressions**. Use **shell expression** for the `` !`...` `` syntax in **prompts**; use "hook" for lifecycle hooks; use "CLI command" for `sandcastle init`, `sandcastle build-image`, etc.
 - **"Variable"** vs **"Argument"** — Env vars and **prompt arguments** are both key-value pairs, but they serve different purposes. **Prompt arguments** are host-side values substituted into `{{KEY}}` placeholders. Env vars are passed into the **sandbox** environment. Don't call prompt arguments "variables" or "template variables".
 - **"File mode"** vs **"Log-to-file mode"** — Use **log-to-file mode** to be explicit about what's happening. "File mode" is too terse and could be confused with other file operations. Similarly, avoid "stdout mode" for **terminal mode** — stdout is an implementation detail, not the user-facing concept.
+- **"Base branch"** vs **"Target branch"** — "Base branch" is common in GitHub PR terminology but ambiguous in Sandcastle (base of what?). Use **target branch** — it's where commits land when using a temp branch, and it's the natural diff base for reviewers.
+- **"Built-in"** vs **"Default"** prompt arguments — "Default" implies overridable. **Built-in prompt arguments** are injected by Sandcastle and cannot be overridden via `promptArgs`. Use "built-in" to signal this.
