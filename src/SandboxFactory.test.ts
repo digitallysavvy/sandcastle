@@ -486,6 +486,79 @@ describe("WorktreeDockerSandboxFactory", () => {
     ).toBeUndefined();
   });
 
+  describe("mode: none", () => {
+    const makeNoneLayer = (
+      displayRef = Ref.unsafeMake<ReadonlyArray<DisplayEntry>>([]),
+    ) =>
+      Layer.provide(
+        WorktreeDockerSandboxFactory.layer,
+        Layer.mergeAll(
+          Layer.succeed(WorktreeSandboxConfig, {
+            imageName: "test-image",
+            env: { FOO: "bar" },
+            hostRepoDir,
+            worktree: { mode: "none" },
+          }),
+          NodeFileSystem.layer,
+          SilentDisplay.layer(displayRef),
+        ),
+      );
+
+    it("does not create or remove a worktree", async () => {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const factory = yield* SandboxFactory;
+          yield* factory.withSandbox(() => Effect.void);
+        }).pipe(Effect.provide(makeNoneLayer())),
+      );
+
+      expect(mockCreate).not.toHaveBeenCalled();
+      expect(mockRemove).not.toHaveBeenCalled();
+      expect(mockPruneStale).not.toHaveBeenCalled();
+    });
+
+    it("bind-mounts host repo dir at SANDBOX_WORKSPACE_DIR", async () => {
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const factory = yield* SandboxFactory;
+          yield* factory.withSandbox(() => Effect.void);
+        }).pipe(Effect.provide(makeNoneLayer())),
+      );
+
+      const runArgs = capturedArgs().find((args) => args[0] === "run");
+      expect(runArgs).toBeDefined();
+      expect(runArgs).toContain(`${hostRepoDir}:${SANDBOX_WORKSPACE_DIR}`);
+      expect(runArgs).toContain(`${hostRepoDir}/.git:${hostRepoDir}/.git`);
+    });
+
+    it("returns undefined preservedWorktreePath", async () => {
+      const result = await Effect.runPromise(
+        Effect.gen(function* () {
+          const factory = yield* SandboxFactory;
+          return yield* factory.withSandbox(() => Effect.succeed("done"));
+        }).pipe(Effect.provide(makeNoneLayer())),
+      );
+
+      expect(result.preservedWorktreePath).toBeUndefined();
+      expect(result.value).toBe("done");
+    });
+
+    it("does not pass hostWorktreePath to the effect", async () => {
+      let receivedInfo: { hostWorktreePath?: string } | undefined;
+      await Effect.runPromise(
+        Effect.gen(function* () {
+          const factory = yield* SandboxFactory;
+          yield* factory.withSandbox((info) => {
+            receivedInfo = info;
+            return Effect.void;
+          });
+        }).pipe(Effect.provide(makeNoneLayer())),
+      );
+
+      expect(receivedInfo?.hostWorktreePath).toBeUndefined();
+    });
+  });
+
   it("returns undefined preservedWorktreePath on success with clean worktree", async () => {
     mockHasUncommittedChanges.mockReturnValue(Effect.succeed(false));
 

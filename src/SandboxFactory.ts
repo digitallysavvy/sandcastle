@@ -275,7 +275,7 @@ export class WorktreeSandboxConfig extends Context.Tag("WorktreeSandboxConfig")<
     readonly imageName: string;
     readonly env: Record<string, string>;
     readonly hostRepoDir: string;
-    /** Worktree mode: temp-branch (default) or explicit branch. */
+    /** Worktree mode: none, temp-branch (default), or explicit branch. */
     readonly worktree?: import("./run.js").WorktreeMode;
     /** Paths relative to the host repo root to copy into the worktree before container start. */
     readonly copyToSandbox?: string[];
@@ -297,9 +297,57 @@ const printWorktreePreservedMessage = (
 };
 
 /**
+ * Start a Docker container with the given volume mounts and return cleanup helpers.
+ * Shared between worktree and none modes.
+ */
+const startSandboxContainer = (
+  containerName: string,
+  imageName: string,
+  env: Record<string, string>,
+  volumeMounts: string[],
+) => {
+  const cleanupContainerOnly = () => {
+    forceRemoveContainerSync(containerName);
+  };
+  const onSignal = () => {
+    cleanupContainerOnly();
+    process.exit(1);
+  };
+
+  const hostUid = process.getuid?.() ?? 1000;
+  const hostGid = process.getgid?.() ?? 1000;
+
+  return startContainer(
+    containerName,
+    imageName,
+    { ...env, HOME: "/home/agent" },
+    {
+      volumeMounts,
+      workdir: SANDBOX_WORKSPACE_DIR,
+      user: `${hostUid}:${hostGid}`,
+    },
+  ).pipe(
+    Effect.andThen(
+      chownInContainer(containerName, `${hostUid}:${hostGid}`, "/home/agent"),
+    ),
+    Effect.tap(() =>
+      Effect.sync(() => {
+        process.on("exit", cleanupContainerOnly);
+        process.on("SIGINT", onSignal);
+        process.on("SIGTERM", onSignal);
+      }),
+    ),
+    Effect.map(() => ({ cleanupContainerOnly, onSignal })),
+  );
+};
+
+/**
  * Worktree sandbox mode: creates a git worktree and bind-mounts it into the
  * container at SANDBOX_WORKSPACE_DIR. The host's .git directory is also bind-mounted at
  * its original host path so the worktree's .git file pointer resolves correctly.
+ *
+ * In 'none' mode: bind-mounts the host's working directory directly into the container.
+ * No worktree is created, pruned, or cleaned up.
  */
 export const WorktreeDockerSandboxFactory = {
   layer: Layer.effect(
@@ -313,6 +361,7 @@ export const WorktreeDockerSandboxFactory = {
         copyToSandbox: copyPaths,
         agentName,
       } = yield* WorktreeSandboxConfig;
+      const isNoneMode = worktreeMode?.mode === "none";
       const branch =
         worktreeMode?.mode === "branch" ? worktreeMode.branch : undefined;
       const fileSystem = yield* FileSystem.FileSystem;
@@ -326,6 +375,45 @@ export const WorktreeDockerSandboxFactory = {
           Exclude<R, Sandbox>
         > => {
           const containerName = `sandcastle-${randomUUID()}`;
+
+          if (isNoneMode) {
+            // None mode: bind-mount host directory directly, no worktree
+            const gitDir = join(hostRepoDir, ".git");
+            const volumeMounts = [
+              `${hostRepoDir}:${SANDBOX_WORKSPACE_DIR}`,
+              `${gitDir}:${gitDir}`,
+            ];
+            return Effect.acquireUseRelease(
+              startSandboxContainer(
+                containerName,
+                imageName,
+                env,
+                volumeMounts,
+              ),
+              // Use
+              () =>
+                makeEffect({}).pipe(
+                  Effect.provide(makeDockerSandboxLayer(containerName)),
+                ) as Effect.Effect<A, E | DockerError, Exclude<R, Sandbox>>,
+              // Release: remove container only (no worktree to clean up)
+              ({ cleanupContainerOnly, onSignal }) =>
+                Effect.sync(() => {
+                  process.removeListener("exit", cleanupContainerOnly);
+                  process.removeListener("SIGINT", onSignal);
+                  process.removeListener("SIGTERM", onSignal);
+                }).pipe(
+                  Effect.andThen(removeContainer(containerName)),
+                  Effect.orDie,
+                ),
+            ).pipe(
+              Effect.map((value) => ({
+                value,
+                preservedWorktreePath: undefined,
+              })),
+            );
+          }
+
+          // Worktree mode (temp-branch or explicit branch)
           // Populated by the release phase when a worktree is preserved on failure,
           // so we can attach the path to recognized error types before they propagate.
           let preservedWorktreePath: string | undefined;
@@ -374,50 +462,30 @@ export const WorktreeDockerSandboxFactory = {
                     `${gitDir}:${gitDir}`,
                   ];
 
-                  // On signals: remove the container but preserve the worktree so the
-                  // developer can inspect the agent's work.
-                  const cleanupContainerOnly = () => {
-                    forceRemoveContainerSync(containerName);
-                  };
-                  const onSignal = () => {
-                    cleanupContainerOnly();
-                    printWorktreePreservedMessage(
-                      worktreeInfo.path,
-                      `Worktree preserved at ${worktreeInfo.path}`,
-                    );
-                    process.exit(1);
-                  };
-
-                  const hostUid = process.getuid?.() ?? 1000;
-                  const hostGid = process.getgid?.() ?? 1000;
-
-                  return startContainer(
+                  return startSandboxContainer(
                     containerName,
                     imageName,
-                    { ...env, HOME: "/home/agent" },
-                    {
-                      volumeMounts,
-                      workdir: SANDBOX_WORKSPACE_DIR,
-                      user: `${hostUid}:${hostGid}`,
-                    },
+                    env,
+                    volumeMounts,
                   ).pipe(
-                    Effect.andThen(
-                      chownInContainer(
-                        containerName,
-                        `${hostUid}:${hostGid}`,
-                        "/home/agent",
-                      ),
-                    ),
-                    Effect.tap(() =>
+                    Effect.tap(({ cleanupContainerOnly, onSignal }) =>
                       Effect.sync(() => {
-                        // exit handler only removes the container; the worktree is preserved
-                        // on abnormal exit just as on SIGINT/SIGTERM.
-                        process.on("exit", cleanupContainerOnly);
-                        process.on("SIGINT", onSignal);
-                        process.on("SIGTERM", onSignal);
+                        // Override the default signal handler to also preserve the worktree
+                        process.removeListener("SIGINT", onSignal);
+                        process.removeListener("SIGTERM", onSignal);
+                        const onSignalWithWorktree = () => {
+                          cleanupContainerOnly();
+                          printWorktreePreservedMessage(
+                            worktreeInfo.path,
+                            `Worktree preserved at ${worktreeInfo.path}`,
+                          );
+                          process.exit(1);
+                        };
+                        process.on("SIGINT", onSignalWithWorktree);
+                        process.on("SIGTERM", onSignalWithWorktree);
                       }),
                     ),
-                    Effect.map(() => ({
+                    Effect.map(({ cleanupContainerOnly, onSignal }) => ({
                       worktreeInfo,
                       cleanupContainerOnly,
                       onSignal,

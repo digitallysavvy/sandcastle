@@ -142,10 +142,12 @@ export type LoggingOption =
 
 /**
  * Worktree mode discriminated union.
+ * - `none`: bind-mounts host working directory directly; no worktree, no merge step.
  * - `temp-branch`: creates a temporary worktree/branch, merges back, deletes the temp branch (default).
  * - `branch`: creates a worktree on an explicit branch; commits stay on that branch.
  */
 export type WorktreeMode =
+  | { readonly mode: "none" }
   | { readonly mode: "temp-branch" }
   | { readonly mode: "branch"; readonly branch: string };
 
@@ -210,7 +212,20 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
   const worktreeMode: WorktreeMode = options.worktree ?? {
     mode: "temp-branch",
   };
-  // Extract explicit branch when in branch mode, undefined for temp-branch mode
+
+  // Validate: copyToSandbox is incompatible with mode: 'none'
+  if (
+    worktreeMode.mode === "none" &&
+    options.copyToSandbox &&
+    options.copyToSandbox.length > 0
+  ) {
+    throw new Error(
+      "copyToSandbox is not supported with worktree mode 'none'. " +
+        "In mode 'none' the host working directory is bind-mounted directly.",
+    );
+  }
+
+  // Extract explicit branch when in branch mode, undefined for temp-branch/none mode
   const branch =
     worktreeMode.mode === "branch" ? worktreeMode.branch : undefined;
 
@@ -233,16 +248,18 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
     resolveEnv(hostRepoDir).pipe(Effect.provide(NodeContext.layer)),
   );
 
-  // When in temp-branch mode, generate a temporary branch name.
-  // This names the log file after the temp branch and also directs
-  // the sandbox to work on that branch (instead of the current host branch).
-  const resolvedBranch = branch ?? generateTempBranchName(agentName);
-
   // Always capture the host's current branch for the TARGET_BRANCH built-in
   // prompt argument. When using a temp branch, it also prefixes the log filename.
   const currentHostBranch = await Effect.runPromise(
     getCurrentBranch(hostRepoDir),
   );
+
+  // When in temp-branch mode, generate a temporary branch name.
+  // In none mode, use the host's current branch directly (no worktree).
+  const resolvedBranch =
+    worktreeMode.mode === "none"
+      ? currentHostBranch
+      : (branch ?? generateTempBranchName(agentName));
 
   // When using a temp branch, prefix the log filename with the target branch
   // (the host's current branch) so developers can tell which branch was targeted.
@@ -310,7 +327,8 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
       yield* validateNoBuiltInArgOverride(userArgs);
 
       // Build effective args: built-in args merged with user-provided args.
-      // Built-in keys are silenced so they don't trigger unused-arg warnings.
+      // In none mode, resolvedBranch is already currentHostBranch, so
+      // SOURCE_BRANCH and TARGET_BRANCH both resolve to the host's current branch.
       const effectiveArgs = {
         SOURCE_BRANCH: resolvedBranch,
         TARGET_BRANCH: currentHostBranch,
@@ -323,13 +341,18 @@ export const run = async (options: RunOptions): Promise<RunResult> => {
         builtInArgKeysSet,
       );
 
+      // In none mode, pass the host branch so SandboxLifecycle skips the merge step.
+      // In temp-branch mode, branch is undefined (triggers merge). In branch mode, it's the explicit branch.
+      const orchestrateBranch =
+        worktreeMode.mode === "none" ? currentHostBranch : branch;
+
       const orchestrateResult = yield* orchestrate({
         hostRepoDir,
         sandboxRepoDir: SANDBOX_WORKSPACE_DIR,
         iterations: maxIterations,
         hooks,
         prompt: resolvedPrompt,
-        branch,
+        branch: orchestrateBranch,
         provider,
         completionSignal: options.completionSignal,
         idleTimeoutSeconds: options.idleTimeoutSeconds,

@@ -6,6 +6,7 @@ import {
   DEFAULT_MAX_ITERATIONS,
   defaultImageName,
   printFileDisplayStartup,
+  run,
   sanitizeBranchForFilename,
   type RunOptions,
   type RunResult,
@@ -183,6 +184,15 @@ describe("RunOptions", () => {
     expect(opts.name).toBeUndefined();
   });
 
+  it("accepts worktree with none mode", () => {
+    const opts: RunOptions = {
+      agent: claudeCode("claude-opus-4-6"),
+      prompt: "test",
+      worktree: { mode: "none" },
+    };
+    expect(opts.worktree).toEqual({ mode: "none" });
+  });
+
   it("accepts worktree with temp-branch mode", () => {
     const opts: RunOptions = {
       agent: claudeCode("claude-opus-4-6"),
@@ -234,6 +244,28 @@ describe("WorktreeMode", () => {
     const mode: WorktreeMode = { mode: "branch", branch: "my-branch" };
     expect(mode.mode).toBe("branch");
     expect(mode.branch).toBe("my-branch");
+  });
+
+  it("none mode has no branch field", () => {
+    const mode: WorktreeMode = { mode: "none" };
+    expect(mode.mode).toBe("none");
+    // @ts-expect-error branch does not exist on none mode
+    expect(mode.branch).toBeUndefined();
+  });
+});
+
+describe("copyToSandbox with mode none", () => {
+  it("throws a runtime error when copyToSandbox is provided with mode none", async () => {
+    await expect(
+      run({
+        agent: claudeCode("claude-opus-4-6"),
+        prompt: "test",
+        worktree: { mode: "none" },
+        copyToSandbox: [".env"],
+      }),
+    ).rejects.toThrow(
+      "copyToSandbox is not supported with worktree mode 'none'",
+    );
   });
 });
 

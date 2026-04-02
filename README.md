@@ -96,6 +96,9 @@ const result = await run({
   maxIterations: 5,
 
   // Worktree mode for sandbox work. Defaults to { mode: 'temp-branch' }.
+  // { mode: 'none' } — bind-mount host working directory directly (no worktree).
+  // { mode: 'temp-branch' } — create a temp worktree, merge back.
+  // { mode: 'branch', branch } — create a worktree on an explicit branch.
   worktree: { mode: "branch", branch: "agent/fix-42" },
 
   // Docker image used for the sandbox. Default: "sandcastle:<repo-dir-name>"
@@ -296,21 +299,21 @@ Removes the Docker image.
 
 ### `RunOptions`
 
-| Option               | Type               | Default                       | Description                                                                 |
-| -------------------- | ------------------ | ----------------------------- | --------------------------------------------------------------------------- |
-| `agent`              | AgentProvider      | —                             | **Required.** Agent provider (e.g. `claudeCode("claude-opus-4-6")`)         |
-| `prompt`             | string             | —                             | Inline prompt (mutually exclusive with `promptFile`)                        |
-| `promptFile`         | string             | —                             | Path to prompt file (mutually exclusive with `prompt`)                      |
-| `maxIterations`      | number             | `1`                           | Maximum iterations to run                                                   |
-| `hooks`              | object             | —                             | Lifecycle hooks (`onSandboxReady`)                                          |
-| `worktree`           | WorktreeMode       | `{ mode: 'temp-branch' }`     | Worktree mode: `{ mode: 'temp-branch' }` or `{ mode: 'branch', branch }`    |
-| `imageName`          | string             | `sandcastle:<repo-dir-name>`  | Docker image name for the sandbox                                           |
-| `name`               | string             | —                             | Display name for the run, shown as a prefix in log output                   |
-| `promptArgs`         | PromptArgs         | —                             | Key-value map for `{{KEY}}` placeholder substitution                        |
-| `copyToSandbox`      | string[]           | —                             | Host-relative file paths to copy into the worktree before start             |
-| `logging`            | object             | file (auto-generated)         | `{ type: 'file', path }` or `{ type: 'stdout' }`                            |
-| `completionSignal`   | string \| string[] | `<promise>COMPLETE</promise>` | String or array of strings the agent emits to stop the iteration loop early |
-| `idleTimeoutSeconds` | number             | `600`                         | Idle timeout in seconds — resets on each agent output event                 |
+| Option               | Type               | Default                       | Description                                                                                         |
+| -------------------- | ------------------ | ----------------------------- | --------------------------------------------------------------------------------------------------- |
+| `agent`              | AgentProvider      | —                             | **Required.** Agent provider (e.g. `claudeCode("claude-opus-4-6")`)                                 |
+| `prompt`             | string             | —                             | Inline prompt (mutually exclusive with `promptFile`)                                                |
+| `promptFile`         | string             | —                             | Path to prompt file (mutually exclusive with `prompt`)                                              |
+| `maxIterations`      | number             | `1`                           | Maximum iterations to run                                                                           |
+| `hooks`              | object             | —                             | Lifecycle hooks (`onSandboxReady`)                                                                  |
+| `worktree`           | WorktreeMode       | `{ mode: 'temp-branch' }`     | Worktree mode: `{ mode: 'none' }`, `{ mode: 'temp-branch' }`, or `{ mode: 'branch', branch }`       |
+| `imageName`          | string             | `sandcastle:<repo-dir-name>`  | Docker image name for the sandbox                                                                   |
+| `name`               | string             | —                             | Display name for the run, shown as a prefix in log output                                           |
+| `promptArgs`         | PromptArgs         | —                             | Key-value map for `{{KEY}}` placeholder substitution                                                |
+| `copyToSandbox`      | string[]           | —                             | Host-relative file paths to copy into the worktree before start (not supported with `mode: 'none'`) |
+| `logging`            | object             | file (auto-generated)         | `{ type: 'file', path }` or `{ type: 'stdout' }`                                                    |
+| `completionSignal`   | string \| string[] | `<promise>COMPLETE</promise>` | String or array of strings the agent emits to stop the iteration loop early                         |
+| `idleTimeoutSeconds` | number             | `600`                         | Idle timeout in seconds — resets on each agent output event                                         |
 
 ### `RunResult`
 
