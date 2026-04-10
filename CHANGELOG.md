@@ -1,5 +1,17 @@
 # @ai-hero/sandcastle
 
+## 0.2.4
+
+### Patch Changes
+
+- 4d79ab9: Add optional `effort` parameter to `claudeCode()` for controlling Claude Code's reasoning effort level (`low`, `medium`, `high`, `max`)
+
+## 0.2.3
+
+### Patch Changes
+
+- 01846be: Fix Docker sandbox failing when run from a git worktree. When `.git` is a worktree file (not a directory), also mount the parent repository's `.git` directory so git can resolve the repository inside the container.
+
 ## 0.2.2
 
 ### Patch Changes
