@@ -15,8 +15,15 @@
  */
 
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import type { IsolatedSandboxHandle } from "./SandboxProvider.js";
 import { buildRecoveryMessage, type FailedStep } from "./RecoveryMessage.js";
 import { execHost, execOk } from "./sandboxExec.js";
@@ -91,6 +98,13 @@ export const syncOut = async (
   const hasUntracked =
     lsFilesResult.exitCode === 0 && lsFilesResult.stdout.trim().length > 0;
 
+  const untrackedFiles = hasUntracked
+    ? lsFilesResult.stdout
+        .trim()
+        .split("\n")
+        .filter((f) => f.length > 0)
+    : [];
+
   // Nothing to sync
   if (!hasCommits && !hasDiff && !hasUntracked) {
     return;
@@ -98,13 +112,9 @@ export const syncOut = async (
 
   // --- Phase 1: Save all artifacts ---
   const patchDir = await createPatchDir(hostRepoDir);
-  const relativePatchDir = join(
-    ".sandcastle",
-    "patches",
-    patchDir.split("/").pop()!,
-  );
+  const relativePatchDir = join(".sandcastle", "patches", basename(patchDir));
 
-  let nonEmptyPatches: string[] = [];
+  const nonEmptyPatches: string[] = [];
 
   // Save committed patches
   if (hasCommits) {
@@ -149,11 +159,6 @@ export const syncOut = async (
 
   // Save untracked files
   if (hasUntracked) {
-    const untrackedFiles = lsFilesResult.stdout
-      .trim()
-      .split("\n")
-      .filter((f) => f.length > 0);
-
     const untrackedDir = join(patchDir, "untracked");
     for (const relPath of untrackedFiles) {
       const sandboxFilePath = `${workspacePath}/${relPath}`;
@@ -189,11 +194,6 @@ export const syncOut = async (
 
   // Copy untracked files
   if (!failedStep && hasUntracked) {
-    const untrackedFiles = lsFilesResult.stdout
-      .trim()
-      .split("\n")
-      .filter((f) => f.length > 0);
-
     try {
       const untrackedDir = join(patchDir, "untracked");
       for (const relPath of untrackedFiles) {
@@ -223,7 +223,6 @@ export const syncOut = async (
     // Clean up empty parent dirs
     const patchesRoot = join(hostRepoDir, ".sandcastle", "patches");
     try {
-      const { readdir } = await import("node:fs/promises");
       const remaining = await readdir(patchesRoot);
       if (remaining.length === 0) {
         await rm(join(hostRepoDir, ".sandcastle"), {
