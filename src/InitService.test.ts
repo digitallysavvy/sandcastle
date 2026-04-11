@@ -376,7 +376,7 @@ describe("InitService scaffold", () => {
       expect(mainTs).toContain("branch");
     });
 
-    it("implement-prompt.md contains {{ISSUE_NUMBER}}, {{ISSUE_TITLE}}, {{BRANCH}} prompt arguments", async () => {
+    it("implement-prompt.md contains issue selection and closure, not prompt argument placeholders", async () => {
       const dir = await makeDir();
       await runScaffold(dir, { templateName: "sequential-reviewer" });
 
@@ -384,9 +384,11 @@ describe("InitService scaffold", () => {
         join(dir, ".sandcastle", "implement-prompt.md"),
         "utf-8",
       );
-      expect(prompt).toContain("{{ISSUE_NUMBER}}");
-      expect(prompt).toContain("{{ISSUE_TITLE}}");
-      expect(prompt).toContain("{{BRANCH}}");
+      expect(prompt).toContain("gh issue list");
+      expect(prompt).toContain("gh issue close");
+      expect(prompt).not.toContain("{{ISSUE_NUMBER}}");
+      expect(prompt).not.toContain("{{ISSUE_TITLE}}");
+      expect(prompt).not.toContain("{{BRANCH}}");
     });
 
     it("review-prompt.md contains {{BRANCH}} prompt argument", async () => {
