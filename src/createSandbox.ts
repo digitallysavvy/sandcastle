@@ -44,7 +44,7 @@ export interface CreateSandboxOptions {
   };
   /** Paths relative to the host repo root to copy into the worktree at creation time. */
   readonly copyToSandbox?: string[];
-  /** @internal Test-only overrides to bypass Docker. */
+  /** @internal Test-only overrides to bypass the sandbox provider. */
   readonly _test?: {
     readonly hostRepoDir?: string;
     readonly buildSandboxLayer?: (
@@ -99,7 +99,7 @@ export interface Sandbox {
   readonly worktreePath: string;
   /** Invoke an agent inside the existing sandbox. */
   run(options: SandboxRunOptions): Promise<SandboxRunResult>;
-  /** Tear down the container and worktree. */
+  /** Tear down the sandbox and worktree. */
   close(): Promise<CloseResult>;
   /** Auto teardown via `await using`. */
   [Symbol.asyncDispose](): Promise<void>;
@@ -107,9 +107,8 @@ export interface Sandbox {
 
 /**
  * Eagerly creates a git worktree on the provided explicit branch and starts
- * a Docker container (or local sandbox in test mode) with the worktree
- * bind-mounted. Returns a Sandbox handle that can be reused across multiple
- * `run()` calls.
+ * a sandbox with the worktree bind-mounted. Returns a Sandbox handle that
+ * can be reused across multiple `run()` calls.
  */
 export const createSandbox = async (
   options: CreateSandboxOptions,
@@ -305,7 +304,7 @@ export const createSandbox = async (
             })()
           : silentDisplayLayer;
 
-      // Build a SandboxFactory that reuses the existing container/sandbox
+      // Build a SandboxFactory that reuses the existing sandbox
       const reuseFactoryLayer = Layer.succeed(SandboxFactory, {
         withSandbox: (makeEffect) =>
           makeEffect({ hostWorktreePath: worktreePath }).pipe(

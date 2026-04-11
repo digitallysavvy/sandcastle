@@ -356,7 +356,7 @@ const interactiveSession = (options: {
         { hostRepoDir, sandboxRepoDir, hostWorktreePath },
         (ctx) =>
           Effect.gen(function* () {
-            // Get container ID for docker exec -it
+            // Get sandbox ID for interactive session
             const hostnameResult = yield* ctx.sandbox.exec("hostname");
             const containerId = hostnameResult.stdout.trim();
 

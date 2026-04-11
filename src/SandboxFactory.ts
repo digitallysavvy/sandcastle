@@ -123,7 +123,7 @@ export const makeSandboxLayerFromHandle = (
             ),
   });
 
-/** The mount point inside the container where the project worktree is bound. */
+/** The mount point inside the sandbox where the project worktree is bound. */
 export const SANDBOX_WORKSPACE_DIR = "/home/agent/workspace";
 
 export interface SandboxInfo {
@@ -155,11 +155,11 @@ export class SandboxConfig extends Context.Tag("SandboxConfig")<
   {
     readonly env: Record<string, string>;
     readonly hostRepoDir: string;
-    /** Paths relative to the host repo root to copy into the worktree before container start. */
+    /** Paths relative to the host repo root to copy into the worktree before sandbox start. */
     readonly copyToSandbox?: string[];
     /** When specified, the run name is included in the auto-generated branch and worktree names. */
     readonly name?: string;
-    /** Sandbox provider — delegates container lifecycle to the provider. */
+    /** Sandbox provider — delegates sandbox lifecycle to the provider. */
     readonly sandboxProvider: SandboxProvider;
   }
 >() {}

@@ -13,7 +13,7 @@ import { withSandboxLifecycle } from "./SandboxLifecycle.js";
 
 /**
  * Creates a sandbox that translates container paths to host paths,
- * simulating Docker's bind mount behavior. When a command uses
+ * simulating a bind-mount sandbox provider. When a command uses
  * `containerPath` as cwd, it's translated to `hostPath`.
  */
 const makePathTranslatingSandbox = (
@@ -377,12 +377,12 @@ describe("withSandboxLifecycle (worktree mode)", () => {
   it("cherry-pick works when sandboxRepoDir differs from host worktree path", async () => {
     const { hostDir, worktreeDir, layer } = await setupWorktree();
 
-    // Simulate Docker: sandboxRepoDir is the container mount point, which differs
-    // from the actual host worktree path. In production the container sees
-    // /home/agent/workspace while the host sees .sandcastle/worktrees/<name>.
+    // Simulate a bind-mount provider: sandboxRepoDir is the container mount point,
+    // which differs from the actual host worktree path. In production the sandbox
+    // sees /home/agent/workspace while the host sees .sandcastle/worktrees/<name>.
     //
     // We use a PathTranslating sandbox that maps the container path to the real
-    // worktree path — exactly what Docker's bind mount does.
+    // worktree path — exactly what a bind-mount provider does.
     const containerPath = "/home/agent/workspace";
     const translatingLayer = Layer.succeed(
       Sandbox,

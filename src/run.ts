@@ -155,7 +155,7 @@ export interface RunOptions {
   readonly idleTimeoutSeconds?: number;
   /** Optional name for the run, shown as a prefix in log output */
   readonly name?: string;
-  /** Paths relative to the host repo root to copy into the worktree before container start. */
+  /** Paths relative to the host repo root to copy into the worktree before sandbox start. */
   readonly copyToSandbox?: string[];
 }
 

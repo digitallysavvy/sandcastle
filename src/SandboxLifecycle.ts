@@ -37,7 +37,7 @@ export interface SandboxLifecycleOptions {
   readonly hooks?: SandboxHooks;
   readonly branch?: string;
   /** Host-side path to the worktree directory. Required when sandboxRepoDir
-   *  is a container path that doesn't exist on the host (e.g. /home/agent/workspace). */
+   *  is a sandbox path that doesn't exist on the host (e.g. /home/agent/workspace). */
   readonly hostWorktreePath?: string;
 }
 
@@ -94,7 +94,7 @@ export const withSandboxLifecycle = <A>(
     yield* display.taskLog("Setting up sandbox", (message) =>
       Effect.gen(function* () {
         // The bind-mounted worktree may be owned by a different UID (host user
-        // vs container user). Mark it safe so git doesn't reject it with
+        // vs sandbox user). Mark it safe so git doesn't reject it with
         // "dubious ownership".
         yield* execOk(
           sandbox,
@@ -147,7 +147,7 @@ export const withSandboxLifecycle = <A>(
     let finalBranch: string;
 
     // For host-side git operations in worktree mode, use hostWorktreePath
-    // (the real path on the host) instead of sandboxRepoDir (which may be a container path
+    // (the real path on the host) instead of sandboxRepoDir (which may be a sandbox path
     // like /home/agent/workspace that doesn't exist on the host).
     const hostSideWorktreePath = hostWorktreePath ?? sandboxRepoDir;
 
