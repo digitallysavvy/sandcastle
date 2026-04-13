@@ -1,5 +1,12 @@
 # @ai-hero/sandcastle
 
+## 0.4.2
+
+### Patch Changes
+
+- cd2a219: Fix templates crashing with "copyToSandbox is not supported with head branch strategy" by adding explicit `branchStrategy: { type: "merge-to-head" }` to all template `run()` calls that use `copyToSandbox`.
+- 2cafddd: Use sandbox provider's `workspacePath` instead of hardcoded `/home/agent/workspace` for sandbox-side commands, fixing Vercel sandbox support where the workspace is at `/vercel/sandbox/workspace`.
+
 ## 0.4.1
 
 ### Patch Changes
