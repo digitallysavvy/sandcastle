@@ -13,6 +13,10 @@
     "./sandboxes/docker": {
       "import": "./dist/sandboxes/docker.js",
       "types": "./dist/sandboxes/docker.d.ts"
+    },
+    "./sandboxes/daytona": {
+      "import": "./dist/sandboxes/daytona.js",
+      "types": "./dist/sandboxes/daytona.d.ts"
     }
   },
   "bin": {
@@ -68,5 +72,13 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "peerDependencies": {
+    "@daytona/sdk": "^0.164.0"
+  },
+  "peerDependenciesMeta": {
+    "@daytona/sdk": {
+      "optional": true
+    }
+  }
 }
