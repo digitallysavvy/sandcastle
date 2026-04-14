@@ -1,5 +1,13 @@
 # @ai-hero/sandcastle
 
+## 0.4.3
+
+### Patch Changes
+
+- e3fd351: Add `sudo` option to hook commands and `exec()` interface for running commands with elevated privileges inside sandboxes
+- a30acb3: Strip matching surrounding quotes from .env file values so that `KEY="value"` and `KEY='value'` are parsed as `value` instead of including literal quote characters
+- f1fdd4f: Log files now append between runs instead of overwriting. Each run writes a `--- Run started: <ISO timestamp> ---` delimiter header, preserving logs from previous runs of the same branch+agent combination.
+
 ## 0.4.2
 
 ### Patch Changes
