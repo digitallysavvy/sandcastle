@@ -172,7 +172,7 @@ export const orchestrate = (
       yield* display.status(label(`Iteration ${i}/${iterations}`), "info");
 
       const sandboxResult = yield* factory.withSandbox(
-        ({ hostWorktreePath, sandboxWorkspacePath }) =>
+        ({ hostWorktreePath, sandboxWorkspacePath, applyToHost }) =>
           withSandboxLifecycle(
             {
               hostRepoDir,
@@ -180,6 +180,7 @@ export const orchestrate = (
               hooks,
               branch,
               hostWorktreePath,
+              applyToHost,
             },
             (ctx) =>
               Effect.gen(function* () {

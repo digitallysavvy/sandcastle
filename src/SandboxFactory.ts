@@ -116,6 +116,9 @@ export interface SandboxInfo {
   readonly hostWorktreePath?: string;
   /** Absolute path to the workspace inside the sandbox, as reported by the provider. */
   readonly sandboxWorkspacePath: string;
+  /** Sync changes from the sandbox to the host worktree.
+   *  For isolated providers, runs syncOut. For bind-mount providers, this is a no-op. */
+  readonly applyToHost: () => Effect.Effect<void, SyncError>;
 }
 
 export interface WithSandboxResult<A> {
@@ -343,34 +346,23 @@ export const WorktreeDockerSandboxFactory = {
                 ),
               ),
               // Use
-              ({ worktreeInfo, sandboxLayer, workspacePath }) =>
+              ({ worktreeInfo, sandboxLayer, workspacePath, handle }) =>
                 makeEffect({
                   hostWorktreePath: worktreeInfo.path,
                   sandboxWorkspacePath: workspacePath,
+                  applyToHost: () =>
+                    syncOut(worktreeInfo.path, handle as IsolatedSandboxHandle),
                 }).pipe(Effect.provide(sandboxLayer)) as Effect.Effect<
                   A,
-                  E | DockerError,
+                  E | DockerError | SyncError,
                   Exclude<R, Sandbox>
                 >,
-              // Release: sync commits back to worktree, close handle, then cleanup worktree
+              // Release: close handle, then cleanup worktree
               ({ worktreeInfo, handle }, exit) =>
-                syncOut(
-                  worktreeInfo.path,
-                  handle as IsolatedSandboxHandle,
-                ).pipe(
-                  Effect.catchAll((e) =>
-                    Effect.sync(() => {
-                      console.error(
-                        `[sandcastle] Warning: syncOut failed: ${e.message}`,
-                      );
-                    }),
-                  ),
-                  Effect.andThen(
-                    Effect.tryPromise({
-                      try: () => handle.close(),
-                      catch: () => undefined,
-                    }),
-                  ),
+                Effect.tryPromise({
+                  try: () => handle.close(),
+                  catch: () => undefined,
+                }).pipe(
                   Effect.andThen(cleanupWorktree(worktreeInfo.path, exit)),
                   Effect.tap((p) => {
                     preservedPath = p;
@@ -413,9 +405,14 @@ export const WorktreeDockerSandboxFactory = {
                   }),
                   // Use
                   ({ sandboxLayer, workspacePath }) =>
-                    makeEffect({ sandboxWorkspacePath: workspacePath }).pipe(
-                      Effect.provide(sandboxLayer),
-                    ) as Effect.Effect<A, E | DockerError, Exclude<R, Sandbox>>,
+                    makeEffect({
+                      sandboxWorkspacePath: workspacePath,
+                      applyToHost: () => Effect.void,
+                    }).pipe(Effect.provide(sandboxLayer)) as Effect.Effect<
+                      A,
+                      E | DockerError,
+                      Exclude<R, Sandbox>
+                    >,
                   // Release
                   ({ handle }) =>
                     Effect.tryPromise({
@@ -495,6 +492,7 @@ export const WorktreeDockerSandboxFactory = {
               makeEffect({
                 hostWorktreePath: worktreeInfo.path,
                 sandboxWorkspacePath: workspacePath,
+                applyToHost: () => Effect.void,
               }).pipe(Effect.provide(sandboxLayer)) as Effect.Effect<
                 A,
                 E | DockerError,

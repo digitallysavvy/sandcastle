@@ -42,6 +42,10 @@ export interface SandboxLifecycleOptions {
   /** Host-side path to the worktree directory. Required when sandboxRepoDir
    *  is a sandbox path that doesn't exist on the host (e.g. /home/agent/workspace). */
   readonly hostWorktreePath?: string;
+  /** Called after agent work completes but before host-side git operations (merge, commit collection).
+   *  For isolated providers, this syncs changes from the sandbox to the host worktree.
+   *  For bind-mount providers, this is a no-op (filesystem is already shared). */
+  readonly applyToHost?: () => Effect.Effect<void, SyncError>;
 }
 
 export interface SandboxContext {
@@ -145,22 +149,33 @@ export const withSandboxLifecycle = <A>(
 
     const targetBranch = branch ?? resolvedBranch;
 
-    // Record base HEAD
-    const baseHead = (yield* execOk(sandbox, "git rev-parse HEAD", {
-      cwd: sandboxRepoDir,
-    })).stdout.trim();
-
-    // Run the caller's work
-    const result = yield* work({ sandbox, sandboxRepoDir, baseHead });
-
-    // Collect commits and handle cherry-pick for temp branches
-    let commits: { sha: string }[];
-    let finalBranch: string;
-
     // For host-side git operations in worktree mode, use hostWorktreePath
     // (the real path on the host) instead of sandboxRepoDir (which may be a sandbox path
     // like /home/agent/workspace that doesn't exist on the host).
     const hostSideWorktreePath = hostWorktreePath ?? sandboxRepoDir;
+
+    // Record base HEAD from the host worktree (not the sandbox).
+    // For bind-mount providers, these are the same. For isolated providers,
+    // the host-side SHA is the correct baseline for git rev-list after applyToHost
+    // syncs commits back (syncOut creates new SHAs via format-patch/am).
+    const baseHead = yield* Effect.promise(async () => {
+      const { stdout } = await execAsync("git rev-parse HEAD", {
+        cwd: hostSideWorktreePath,
+      });
+      return stdout.trim();
+    });
+
+    // Run the caller's work
+    const result = yield* work({ sandbox, sandboxRepoDir, baseHead });
+
+    // Sync changes from sandbox to host worktree (no-op for bind-mount providers)
+    if (options.applyToHost) {
+      yield* options.applyToHost();
+    }
+
+    // Collect commits and handle cherry-pick for temp branches
+    let commits: { sha: string }[];
+    let finalBranch: string;
 
     if (hostCurrentBranch !== null) {
       // Temp branch mode: merge temp branch into host branch, then delete temp branch.

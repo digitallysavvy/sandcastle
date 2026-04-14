@@ -110,6 +110,7 @@ const makeTestSandboxFactory = (
           makeEffect({
             hostWorktreePath: sandboxBaseDir,
             sandboxWorkspacePath: sandboxBaseDir,
+            applyToHost: () => Effect.void,
           }).pipe(Effect.provide(buildLayer(sandboxBaseDir))) as Effect.Effect<
             A,
             E | DockerError,
@@ -733,6 +734,7 @@ describe("OrchestrateResult", () => {
             makeEffect({
               hostWorktreePath: sandboxBaseDir,
               sandboxWorkspacePath: sandboxBaseDir,
+              applyToHost: () => Effect.void,
             }).pipe(
               Effect.provide(
                 makeMockAgentLayer(sandboxBaseDir, async (repoDir) => {

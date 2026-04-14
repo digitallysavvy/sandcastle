@@ -334,6 +334,7 @@ export const createSandbox = async (
           makeEffect({
             hostWorktreePath: worktreePath,
             sandboxWorkspacePath: sandboxRepoDir,
+            applyToHost: () => Effect.void,
           }).pipe(
             Effect.provide(sandboxLayer),
             Effect.map((value) => ({

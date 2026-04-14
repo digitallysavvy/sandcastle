@@ -953,13 +953,13 @@ describe("WorktreeDockerSandboxFactory — isolated providers", () => {
     );
   });
 
-  it("syncs out to worktree path (not hostRepoDir) on release", async () => {
+  it("provides applyToHost callback that syncs commits to worktree", async () => {
     const hostDir = await mkdtemp(join(tmpdir(), "sandcastle-test-"));
     tempDirs.push(hostDir);
     await initRepo(hostDir);
     await commitFile(hostDir, "hello.txt", "hello", "initial");
 
-    // Use hostDir as worktree path — syncOut targets the worktree
+    // Use hostDir as worktree path — applyToHost runs syncOut targeting the worktree
     mockCreate.mockReturnValue(
       Effect.succeed({ path: hostDir, branch: "sandcastle/20240101-000000" }),
     );
@@ -967,14 +967,13 @@ describe("WorktreeDockerSandboxFactory — isolated providers", () => {
     mockPruneStale.mockReturnValue(Effect.void);
     mockHasUncommittedChanges.mockReturnValue(Effect.succeed(false));
 
-    // The sandbox makes a commit inside the sandbox. After syncOut, it should
-    // land on the worktree (which is hostDir in this test). We verify by checking
-    // that the commit is present in hostDir's git log after the run.
+    // The sandbox makes a commit inside the sandbox. Calling applyToHost should
+    // run syncOut which lands the commit on the worktree (hostDir in this test).
     let commitMade = false;
     await Effect.runPromise(
       Effect.gen(function* () {
         const factory = yield* SandboxFactory;
-        yield* factory.withSandbox(() =>
+        yield* factory.withSandbox((info) =>
           Effect.gen(function* () {
             const sandbox = yield* Sandbox;
             yield* sandbox.exec(
@@ -984,6 +983,8 @@ describe("WorktreeDockerSandboxFactory — isolated providers", () => {
               'echo "new content" > new-file.txt && git add new-file.txt && git commit -m "sandbox commit"',
             );
             commitMade = true;
+            // Caller (lifecycle) is responsible for calling applyToHost
+            yield* info.applyToHost();
           }),
         );
       }).pipe(Effect.provide(makeIsolatedLayer(hostDir))),

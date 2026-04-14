@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { type DisplayEntry, SilentDisplay } from "./Display.js";
 import { Sandbox, type SandboxService } from "./SandboxFactory.js";
 import { makeLocalSandboxLayer } from "./testSandbox.js";
-import { ExecError } from "./errors.js";
+import { ExecError, SyncError } from "./errors.js";
 import { withSandboxLifecycle } from "./SandboxLifecycle.js";
 
 /**
@@ -725,5 +725,91 @@ describe("withSandboxLifecycle (worktree mode)", () => {
       { cwd: hostDir },
     );
     expect(branchLog).toContain("explicit branch commit");
+  });
+
+  it("calls applyToHost after work completes but before merge operations", async () => {
+    const { hostDir, worktreeDir, layer } = await setupWorktree();
+
+    const callOrder: string[] = [];
+
+    const result = await Effect.runPromise(
+      withSandboxLifecycle(
+        {
+          hostRepoDir: hostDir,
+          sandboxRepoDir: worktreeDir,
+          applyToHost: () =>
+            Effect.sync(() => {
+              callOrder.push("applyToHost");
+            }) as Effect.Effect<void, SyncError>,
+        },
+        (ctx) =>
+          Effect.gen(function* () {
+            callOrder.push("work");
+            yield* ctx.sandbox.exec('git config user.email "test@test.com"', {
+              cwd: ctx.sandboxRepoDir,
+            });
+            yield* ctx.sandbox.exec('git config user.name "Test"', {
+              cwd: ctx.sandboxRepoDir,
+            });
+            yield* ctx.sandbox.exec(
+              'sh -c "echo content > new.txt && git add new.txt && git commit -m \\"test commit\\""',
+              { cwd: ctx.sandboxRepoDir },
+            );
+          }),
+      ).pipe(Effect.provide(Layer.merge(layer, testDisplayLayer))),
+    );
+
+    // applyToHost should be called after work but before the merge
+    expect(callOrder).toEqual(["work", "applyToHost"]);
+    // Commits should still be collected properly
+    expect(result.commits).toHaveLength(1);
+  });
+
+  it("records baseHead from the host worktree, not from inside the sandbox", async () => {
+    const { hostDir, worktreeDir, layer } = await setupWorktree();
+
+    // Use a container path that differs from the host worktree path
+    const containerPath = "/home/agent/workspace";
+    const translatingLayer = Layer.succeed(
+      Sandbox,
+      makePathTranslatingSandbox(worktreeDir, containerPath, layer),
+    );
+
+    let capturedBaseHead = "";
+    await Effect.runPromise(
+      withSandboxLifecycle(
+        {
+          hostRepoDir: hostDir,
+          sandboxRepoDir: containerPath,
+          hostWorktreePath: worktreeDir,
+        },
+        (ctx) =>
+          Effect.gen(function* () {
+            capturedBaseHead = ctx.baseHead;
+          }),
+      ).pipe(Effect.provide(Layer.merge(translatingLayer, testDisplayLayer))),
+    );
+
+    // baseHead should match the host worktree HEAD, not some sandbox-internal value
+    const hostHead = await getHead(worktreeDir);
+    expect(capturedBaseHead).toBe(hostHead);
+  });
+
+  it("applyToHost error propagates as SyncError", async () => {
+    const { hostDir, worktreeDir, layer } = await setupWorktree();
+
+    await expect(
+      Effect.runPromise(
+        withSandboxLifecycle(
+          {
+            hostRepoDir: hostDir,
+            sandboxRepoDir: worktreeDir,
+            applyToHost: () =>
+              Effect.fail(new SyncError({ message: "sync failed" })),
+          },
+          () => Effect.succeed("ok"),
+        ).pipe(Effect.provide(Layer.merge(layer, testDisplayLayer))),
+      ),
+    ).rejects.toThrow("sync failed");
   });
 });
