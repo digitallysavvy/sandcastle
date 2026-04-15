@@ -47,69 +47,51 @@ export const createWorkspace = async (
 ): Promise<Workspace> => {
   const hostRepoDir = options._test?.hostRepoDir ?? process.cwd();
 
-  // Determine branch from strategy
   const branch =
     options.branchStrategy.type === "branch"
       ? options.branchStrategy.branch
       : undefined;
 
-  // 1. Prune stale worktrees + create worktree
-  const worktreeInfo = await Effect.runPromise(
-    WorkspaceManager.pruneStale(hostRepoDir)
-      .pipe(Effect.catchAll(() => Effect.void))
-      .pipe(Effect.andThen(WorkspaceManager.create(hostRepoDir, { branch })))
-      .pipe(Effect.provide(NodeContext.layer)),
-  );
-
-  const worktreePath = worktreeInfo.path;
-  const resolvedBranch = worktreeInfo.branch;
-
-  // 2. Copy files if requested
-  if (options.copyToWorkspace && options.copyToWorkspace.length > 0) {
-    await Effect.runPromise(
-      copyToWorkspace(options.copyToWorkspace, hostRepoDir, worktreePath),
+  const worktreeInfo = await Effect.gen(function* () {
+    yield* WorkspaceManager.pruneStale(hostRepoDir).pipe(
+      Effect.catchAll(() => Effect.void),
     );
-  }
+    const info = yield* WorkspaceManager.create(hostRepoDir, { branch });
+    if (options.copyToWorkspace && options.copyToWorkspace.length > 0) {
+      yield* copyToWorkspace(options.copyToWorkspace, hostRepoDir, info.path);
+    }
+    return info;
+  }).pipe(Effect.provide(NodeContext.layer), Effect.runPromise);
 
-  // 3. Build close function
   let closed = false;
 
-  const doClose = async (): Promise<CloseResult> => {
+  const close = async (): Promise<CloseResult> => {
     if (closed) return { preservedWorkspacePath: undefined };
     closed = true;
 
-    // Check for uncommitted changes
-    const isDirty = await Effect.runPromise(
-      WorkspaceManager.hasUncommittedChanges(worktreePath).pipe(
-        Effect.catchAll(() => Effect.succeed(false)),
-      ),
-    );
+    return Effect.gen(function* () {
+      const isDirty = yield* WorkspaceManager.hasUncommittedChanges(
+        worktreeInfo.path,
+      ).pipe(Effect.catchAll(() => Effect.succeed(false)));
 
-    if (isDirty) {
-      return { preservedWorkspacePath: worktreePath };
-    }
+      if (isDirty) {
+        return { preservedWorkspacePath: worktreeInfo.path } as CloseResult;
+      }
 
-    // Remove worktree
-    await Effect.runPromise(
-      WorkspaceManager.remove(worktreePath).pipe(
+      yield* WorkspaceManager.remove(worktreeInfo.path).pipe(
         Effect.catchAll(() => Effect.void),
-      ),
-    );
+      );
 
-    return { preservedWorkspacePath: undefined };
+      return { preservedWorkspacePath: undefined } as CloseResult;
+    }).pipe(Effect.runPromise);
   };
 
-  // 4. Return Workspace handle
-  const workspace: Workspace = {
-    branch: resolvedBranch,
-    workspacePath: worktreePath,
-
-    close: async (): Promise<CloseResult> => doClose(),
-
-    [Symbol.asyncDispose]: async (): Promise<void> => {
-      await workspace.close();
+  return {
+    branch: worktreeInfo.branch,
+    workspacePath: worktreeInfo.path,
+    close,
+    async [Symbol.asyncDispose]() {
+      await close();
     },
   };
-
-  return workspace;
 };
