@@ -812,4 +812,116 @@ describe("withSandboxLifecycle (worktree mode)", () => {
       ),
     ).rejects.toThrow("sync failed");
   });
+
+  it("logs 'Syncing changes to host' taskLog when applyToHost is provided", async () => {
+    const { hostDir, worktreeDir, layer } = await setupWorktree();
+    const displayRef = Ref.unsafeMake<ReadonlyArray<DisplayEntry>>([]);
+    const displayLayer = SilentDisplay.layer(displayRef);
+
+    const entries = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* withSandboxLifecycle(
+          {
+            hostRepoDir: hostDir,
+            sandboxRepoDir: worktreeDir,
+            branch: "sandcastle/test",
+            applyToHost: () => Effect.void,
+          },
+          () => Effect.succeed("ok"),
+        );
+        return yield* Ref.get(displayRef);
+      }).pipe(Effect.provide(Layer.merge(layer, displayLayer))),
+    );
+
+    const syncLog = entries.find(
+      (e) => e._tag === "taskLog" && e.title === "Syncing changes to host",
+    );
+    expect(syncLog).toBeDefined();
+  });
+
+  it("does not log 'Syncing changes to host' when applyToHost is not provided", async () => {
+    const { hostDir, worktreeDir, layer } = await setupWorktree();
+    const displayRef = Ref.unsafeMake<ReadonlyArray<DisplayEntry>>([]);
+    const displayLayer = SilentDisplay.layer(displayRef);
+
+    const entries = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* withSandboxLifecycle(
+          {
+            hostRepoDir: hostDir,
+            sandboxRepoDir: worktreeDir,
+            branch: "sandcastle/test",
+          },
+          () => Effect.succeed("ok"),
+        );
+        return yield* Ref.get(displayRef);
+      }).pipe(Effect.provide(Layer.merge(layer, displayLayer))),
+    );
+
+    const syncLog = entries.find(
+      (e) => e._tag === "taskLog" && e.title === "Syncing changes to host",
+    );
+    expect(syncLog).toBeUndefined();
+  });
+
+  it("logs 'Merging to {branch}' taskLog in temp branch mode with commits", async () => {
+    const { hostDir, worktreeDir, layer } = await setupWorktree();
+    const displayRef = Ref.unsafeMake<ReadonlyArray<DisplayEntry>>([]);
+    const displayLayer = SilentDisplay.layer(displayRef);
+
+    const entries = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* withSandboxLifecycle(
+          {
+            hostRepoDir: hostDir,
+            sandboxRepoDir: worktreeDir,
+          },
+          (ctx) =>
+            Effect.gen(function* () {
+              yield* ctx.sandbox.exec('git config user.email "test@test.com"', {
+                cwd: ctx.sandboxRepoDir,
+              });
+              yield* ctx.sandbox.exec('git config user.name "Test"', {
+                cwd: ctx.sandboxRepoDir,
+              });
+              yield* ctx.sandbox.exec(
+                'sh -c "echo content > merge-file.txt && git add merge-file.txt && git commit -m \\"merge test\\""',
+                { cwd: ctx.sandboxRepoDir },
+              );
+            }),
+        );
+        return yield* Ref.get(displayRef);
+      }).pipe(Effect.provide(Layer.merge(layer, displayLayer))),
+    );
+
+    const mergeLog = entries.find(
+      (e) => e._tag === "taskLog" && e.title === "Merging to main",
+    );
+    expect(mergeLog).toBeDefined();
+  });
+
+  it("logs 'Collecting commits' taskLog after agent work", async () => {
+    const { hostDir, worktreeDir, layer } = await setupWorktree();
+    const displayRef = Ref.unsafeMake<ReadonlyArray<DisplayEntry>>([]);
+    const displayLayer = SilentDisplay.layer(displayRef);
+
+    const entries = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* withSandboxLifecycle(
+          {
+            hostRepoDir: hostDir,
+            sandboxRepoDir: worktreeDir,
+            branch: "sandcastle/test",
+          },
+          () => Effect.succeed("ok"),
+        );
+        return yield* Ref.get(displayRef);
+      }).pipe(Effect.provide(Layer.merge(layer, displayLayer))),
+    );
+
+    const commitLog = entries.find(
+      (e) => e._tag === "taskLog" && e.title === "Collecting commits",
+    );
+    expect(commitLog).toBeDefined();
+  });
 });

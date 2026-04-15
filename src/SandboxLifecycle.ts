@@ -170,7 +170,9 @@ export const withSandboxLifecycle = <A>(
 
     // Sync changes from sandbox to host worktree (no-op for bind-mount providers)
     if (options.applyToHost) {
-      yield* options.applyToHost();
+      yield* display.taskLog("Syncing changes to host", () =>
+        options.applyToHost!(),
+      );
     }
 
     // Collect commits and handle cherry-pick for temp branches
@@ -202,26 +204,28 @@ export const withSandboxLifecycle = <A>(
 
       if (hasNewCommits) {
         // Fast-forward host's current branch to the temp branch
-        yield* Effect.tryPromise({
-          try: async () => {
-            try {
-              await execAsync(`git merge "${resolvedBranch}"`, {
-                cwd: hostRepoDir,
-              });
-            } catch {
-              throw new Error(
-                `Merge of '${resolvedBranch}' onto '${hostCurrentBranch}' failed. ` +
-                  `The temporary branch '${resolvedBranch}' has been preserved. ` +
-                  `To retry: git merge ${resolvedBranch}, ` +
-                  `then clean up: git branch -D ${resolvedBranch}`,
-              );
-            }
-          },
-          catch: (e) =>
-            new SyncError({
-              message: String(e instanceof Error ? e.message : e),
-            }),
-        });
+        yield* display.taskLog(`Merging to ${hostCurrentBranch}`, () =>
+          Effect.tryPromise({
+            try: async () => {
+              try {
+                await execAsync(`git merge "${resolvedBranch}"`, {
+                  cwd: hostRepoDir,
+                });
+              } catch {
+                throw new Error(
+                  `Merge of '${resolvedBranch}' onto '${hostCurrentBranch}' failed. ` +
+                    `The temporary branch '${resolvedBranch}' has been preserved. ` +
+                    `To retry: git merge ${resolvedBranch}, ` +
+                    `then clean up: git branch -D ${resolvedBranch}`,
+                );
+              }
+            },
+            catch: (e) =>
+              new SyncError({
+                message: String(e instanceof Error ? e.message : e),
+              }),
+          }),
+        );
       }
 
       // Delete the temp branch (now merged into host branch)
@@ -232,37 +236,41 @@ export const withSandboxLifecycle = <A>(
       );
 
       // Collect the commits now on the host branch
-      commits = yield* Effect.promise(async () => {
-        try {
-          const { stdout } = await execAsync(
-            `git rev-list "${baseHead}..HEAD" --reverse`,
-            { cwd: hostRepoDir },
-          );
-          const lines = stdout.trim();
-          if (!lines) return [];
-          return lines.split("\n").map((sha) => ({ sha }));
-        } catch {
-          return [];
-        }
-      });
+      commits = yield* display.taskLog("Collecting commits", () =>
+        Effect.promise(async () => {
+          try {
+            const { stdout } = await execAsync(
+              `git rev-list "${baseHead}..HEAD" --reverse`,
+              { cwd: hostRepoDir },
+            );
+            const lines = stdout.trim();
+            if (!lines) return [];
+            return lines.split("\n").map((sha) => ({ sha }));
+          } catch {
+            return [];
+          }
+        }),
+      );
 
       finalBranch = hostCurrentBranch;
     } else {
       // Explicit branch: commits stay on that branch
-      commits = yield* Effect.promise(async () => {
-        try {
-          const { stdout } = await execAsync(
-            `git rev-list "${baseHead}..refs/heads/${targetBranch}" --reverse`,
-            { cwd: hostRepoDir },
-          );
-          const lines = stdout.trim();
-          if (!lines) return [];
-          return lines.split("\n").map((sha) => ({ sha }));
-        } catch {
-          // Branch doesn't exist on host (no commits were produced)
-          return [];
-        }
-      });
+      commits = yield* display.taskLog("Collecting commits", () =>
+        Effect.promise(async () => {
+          try {
+            const { stdout } = await execAsync(
+              `git rev-list "${baseHead}..refs/heads/${targetBranch}" --reverse`,
+              { cwd: hostRepoDir },
+            );
+            const lines = stdout.trim();
+            if (!lines) return [];
+            return lines.split("\n").map((sha) => ({ sha }));
+          } catch {
+            // Branch doesn't exist on host (no commits were produced)
+            return [];
+          }
+        }),
+      );
 
       finalBranch = targetBranch;
     }
