@@ -14,10 +14,12 @@ import {
   listTemplates,
   listAgents,
   getAgent,
+  listBacklogManagers,
+  getBacklogManager,
   getNextStepsLines,
 } from "./InitService.js";
 import { defaultImageName } from "./sandboxes/docker.js";
-import type { AgentEntry } from "./InitService.js";
+import type { AgentEntry, BacklogManagerEntry } from "./InitService.js";
 import { ConfigDirError, InitError } from "./errors.js";
 
 const require = createRequire(import.meta.url);
@@ -136,6 +138,30 @@ const initCommand = Command.make(
           ? modelFlag.value
           : selectedAgent.defaultModel;
 
+      // Resolve backlog manager: interactive select
+      const backlogManagers = listBacklogManagers();
+      let selectedBacklogManager: BacklogManagerEntry;
+      {
+        const selected = yield* Effect.promise(() =>
+          clack.select({
+            message: "Select a backlog manager:",
+            initialValue: "github-issues",
+            options: backlogManagers.map((b) => ({
+              value: b.name,
+              label: b.label,
+            })),
+          }),
+        );
+        if (clack.isCancel(selected)) {
+          yield* Effect.fail(
+            new InitError({
+              message: "Backlog manager selection cancelled.",
+            }),
+          );
+        }
+        selectedBacklogManager = getBacklogManager(selected as string)!;
+      }
+
       // Resolve template: CLI flag > interactive select
       const templates = listTemplates();
       let selectedTemplate: string;
@@ -171,24 +197,27 @@ const initCommand = Command.make(
         selectedTemplate = selected as string;
       }
 
-      // Offer to create the "Sandcastle" label on the repo
-      const shouldCreateLabel = yield* Effect.promise(() =>
-        clack.confirm({
-          message:
-            'Create a "Sandcastle" GitHub label? (Templates filter issues by this label)',
-          initialValue: true,
-        }),
-      );
+      // Offer to create the "Sandcastle" label on the repo (skip for non-GitHub backlog managers)
+      let shouldCreateLabel: boolean | symbol = false;
+      if (selectedBacklogManager.name === "github-issues") {
+        shouldCreateLabel = yield* Effect.promise(() =>
+          clack.confirm({
+            message:
+              'Create a "Sandcastle" GitHub label? (Templates filter issues by this label)',
+            initialValue: true,
+          }),
+        );
 
-      if (shouldCreateLabel === true) {
-        yield* Effect.try({
-          try: () =>
-            execSync(
-              'gh label create "Sandcastle" --description "Issues for Sandcastle to work on" --color "F9A825" 2>/dev/null',
-              { cwd, stdio: "ignore" },
-            ),
-          catch: () => undefined,
-        }).pipe(Effect.ignore);
+        if (shouldCreateLabel === true) {
+          yield* Effect.try({
+            try: () =>
+              execSync(
+                'gh label create "Sandcastle" --description "Issues for Sandcastle to work on" --color "F9A825" 2>/dev/null',
+                { cwd, stdio: "ignore" },
+              ),
+            catch: () => undefined,
+          }).pipe(Effect.ignore);
+        }
       }
 
       const scaffoldResult = yield* d.spinner(
@@ -198,6 +227,7 @@ const initCommand = Command.make(
           model: selectedModel,
           templateName: selectedTemplate,
           createLabel: shouldCreateLabel === true,
+          backlogManager: selectedBacklogManager,
         }).pipe(
           Effect.mapError(
             (e) =>

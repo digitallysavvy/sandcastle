@@ -221,6 +221,49 @@ const AGENT_REGISTRY: AgentEntry[] = [
 
 export const listAgents = (): AgentEntry[] => AGENT_REGISTRY;
 
+// ---------------------------------------------------------------------------
+// Backlog manager registry (internal — not part of public API)
+// ---------------------------------------------------------------------------
+
+export interface BacklogManagerEntry {
+  readonly name: string;
+  readonly label: string;
+  readonly placeholders: {
+    readonly LIST_TASKS_COMMAND: string;
+    readonly VIEW_TASK_COMMAND: string;
+    readonly CLOSE_TASK_COMMAND: string;
+  };
+}
+
+const BACKLOG_MANAGER_REGISTRY: BacklogManagerEntry[] = [
+  {
+    name: "github-issues",
+    label: "GitHub Issues",
+    placeholders: {
+      LIST_TASKS_COMMAND: `gh issue list --state open --label Sandcastle --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'`,
+      VIEW_TASK_COMMAND: "gh issue view {{TASK_ID}}",
+      CLOSE_TASK_COMMAND: `gh issue close {{TASK_ID}} --comment "Completed by Sandcastle"`,
+    },
+  },
+  {
+    name: "beads",
+    label: "Beads",
+    placeholders: {
+      LIST_TASKS_COMMAND: "bd ready --json",
+      VIEW_TASK_COMMAND: "bd show {{TASK_ID}}",
+      CLOSE_TASK_COMMAND: `bd close {{TASK_ID}} "Completed by Sandcastle"`,
+    },
+  },
+];
+
+export const listBacklogManagers = (): BacklogManagerEntry[] =>
+  BACKLOG_MANAGER_REGISTRY;
+
+export const getBacklogManager = (
+  name: string,
+): BacklogManagerEntry | undefined =>
+  BACKLOG_MANAGER_REGISTRY.find((b) => b.name === name);
+
 export const getAgent = (name: string): AgentEntry | undefined =>
   AGENT_REGISTRY.find((a) => a.name === name);
 
@@ -407,6 +450,53 @@ const rewritePromptFiles = (
     );
   });
 
+/**
+ * Replace backlog manager placeholders in all `.md` files in the scaffolded
+ * config directory. Placeholders: `{{LIST_TASKS_COMMAND}}`,
+ * `{{VIEW_TASK_COMMAND}}`, `{{CLOSE_TASK_COMMAND}}`.
+ */
+const rewriteBacklogPlaceholders = (
+  configDir: string,
+  backlogManager: BacklogManagerEntry,
+): Effect.Effect<void, Error, FileSystem.FileSystem> =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const files = yield* fs
+      .readDirectory(configDir)
+      .pipe(Effect.mapError((e) => new Error(e.message)));
+    const mdFiles = files.filter((f) => f.endsWith(".md"));
+    yield* Effect.all(
+      mdFiles.map((f) =>
+        Effect.gen(function* () {
+          const filePath = join(configDir, f);
+          let content = yield* fs
+            .readFileString(filePath)
+            .pipe(Effect.mapError((e) => new Error(e.message)));
+          const original = content;
+          const { placeholders } = backlogManager;
+          content = content.replace(
+            /\{\{LIST_TASKS_COMMAND\}\}/g,
+            placeholders.LIST_TASKS_COMMAND,
+          );
+          content = content.replace(
+            /\{\{VIEW_TASK_COMMAND\}\}/g,
+            placeholders.VIEW_TASK_COMMAND,
+          );
+          content = content.replace(
+            /\{\{CLOSE_TASK_COMMAND\}\}/g,
+            placeholders.CLOSE_TASK_COMMAND,
+          );
+          if (content !== original) {
+            yield* fs
+              .writeFileString(filePath, content)
+              .pipe(Effect.mapError((e) => new Error(e.message)));
+          }
+        }),
+      ),
+      { concurrency: "unbounded" },
+    );
+  });
+
 // ---------------------------------------------------------------------------
 // Main scaffold function
 // ---------------------------------------------------------------------------
@@ -416,6 +506,7 @@ export interface ScaffoldOptions {
   model: string;
   templateName?: string;
   createLabel?: boolean;
+  backlogManager?: BacklogManagerEntry;
 }
 
 export interface ScaffoldResult {
@@ -457,6 +548,7 @@ export const scaffold = (
       model,
       templateName = "blank",
       createLabel = true,
+      backlogManager = BACKLOG_MANAGER_REGISTRY[0]!, // default: github-issues
     } = options;
     const fs = yield* FileSystem.FileSystem;
     const configDir = join(repoDir, ".sandcastle");
@@ -498,6 +590,9 @@ export const scaffold = (
 
     // Rewrite main file with the selected agent factory and model
     yield* rewriteMainTs(configDir, agent, model, mainFilename);
+
+    // Replace backlog manager placeholders in prompt files (must run before label stripping)
+    yield* rewriteBacklogPlaceholders(configDir, backlogManager);
 
     // Strip --label Sandcastle from prompt files when the user declined label creation
     if (!createLabel) {

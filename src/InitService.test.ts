@@ -10,6 +10,8 @@ import {
   listAgents,
   getAgent,
   listTemplates,
+  listBacklogManagers,
+  getBacklogManager,
 } from "./InitService.js";
 import type { AgentEntry, ScaffoldOptions } from "./InitService.js";
 import { SANDBOX_WORKSPACE_DIR } from "./SandboxFactory.js";
@@ -996,6 +998,143 @@ describe("InitService scaffold", () => {
         "utf-8",
       );
       expect(prompt).toContain("@.sandcastle/CODING_STANDARDS.md");
+    });
+  });
+
+  // --- Backlog manager ---
+
+  describe("Backlog manager registry", () => {
+    it("listBacklogManagers returns github-issues and beads", () => {
+      const managers = listBacklogManagers();
+      expect(managers.some((m) => m.name === "github-issues")).toBe(true);
+      expect(managers.some((m) => m.name === "beads")).toBe(true);
+    });
+
+    it("getBacklogManager returns github-issues entry with expected placeholders", () => {
+      const manager = getBacklogManager("github-issues");
+      expect(manager).toBeDefined();
+      expect(manager!.label).toBe("GitHub Issues");
+      expect(manager!.placeholders.LIST_TASKS_COMMAND).toContain(
+        "gh issue list",
+      );
+      expect(manager!.placeholders.LIST_TASKS_COMMAND).toContain("labels");
+      expect(manager!.placeholders.LIST_TASKS_COMMAND).toContain("comments");
+      expect(manager!.placeholders.VIEW_TASK_COMMAND).toContain(
+        "gh issue view",
+      );
+      expect(manager!.placeholders.CLOSE_TASK_COMMAND).toContain(
+        "gh issue close",
+      );
+    });
+
+    it("getBacklogManager returns beads entry with expected placeholders", () => {
+      const manager = getBacklogManager("beads");
+      expect(manager).toBeDefined();
+      expect(manager!.label).toBe("Beads");
+      expect(manager!.placeholders.LIST_TASKS_COMMAND).toBe("bd ready --json");
+      expect(manager!.placeholders.VIEW_TASK_COMMAND).toContain("bd show");
+      expect(manager!.placeholders.CLOSE_TASK_COMMAND).toContain("bd close");
+    });
+
+    it("getBacklogManager returns undefined for unknown manager", () => {
+      expect(getBacklogManager("nonexistent")).toBeUndefined();
+    });
+  });
+
+  describe("Backlog manager scaffold", () => {
+    it("simple-loop with github-issues produces prompt with gh issue commands (richer version)", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        templateName: "simple-loop",
+        backlogManager: getBacklogManager("github-issues"),
+      });
+
+      const prompt = await readFile(
+        join(dir, ".sandcastle", "prompt.md"),
+        "utf-8",
+      );
+      expect(prompt).toContain("gh issue list");
+      expect(prompt).toContain("labels");
+      expect(prompt).toContain("comments");
+      expect(prompt).toContain("gh issue close");
+      expect(prompt).not.toContain("{{LIST_TASKS_COMMAND}}");
+      expect(prompt).not.toContain("{{CLOSE_TASK_COMMAND}}");
+    });
+
+    it("simple-loop with beads produces prompt with bd commands", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        templateName: "simple-loop",
+        backlogManager: getBacklogManager("beads"),
+      });
+
+      const prompt = await readFile(
+        join(dir, ".sandcastle", "prompt.md"),
+        "utf-8",
+      );
+      expect(prompt).toContain("bd ready --json");
+      expect(prompt).toContain("bd close");
+      expect(prompt).not.toContain("gh issue");
+      expect(prompt).not.toContain("{{LIST_TASKS_COMMAND}}");
+      expect(prompt).not.toContain("{{CLOSE_TASK_COMMAND}}");
+    });
+
+    it("simple-loop with beads skips --label Sandcastle (no label to strip)", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        templateName: "simple-loop",
+        backlogManager: getBacklogManager("beads"),
+      });
+
+      const prompt = await readFile(
+        join(dir, ".sandcastle", "prompt.md"),
+        "utf-8",
+      );
+      expect(prompt).not.toContain("--label Sandcastle");
+    });
+
+    it("simple-loop with github-issues retains --label Sandcastle when createLabel is true", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        templateName: "simple-loop",
+        backlogManager: getBacklogManager("github-issues"),
+        createLabel: true,
+      });
+
+      const prompt = await readFile(
+        join(dir, ".sandcastle", "prompt.md"),
+        "utf-8",
+      );
+      expect(prompt).toContain("--label Sandcastle");
+    });
+
+    it("simple-loop with github-issues strips --label Sandcastle when createLabel is false", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, {
+        templateName: "simple-loop",
+        backlogManager: getBacklogManager("github-issues"),
+        createLabel: false,
+      });
+
+      const prompt = await readFile(
+        join(dir, ".sandcastle", "prompt.md"),
+        "utf-8",
+      );
+      expect(prompt).not.toContain("--label Sandcastle");
+      expect(prompt).toContain("gh issue list");
+    });
+
+    it("scaffold without backlogManager defaults to github-issues", async () => {
+      const dir = await makeDir();
+      await runScaffold(dir, { templateName: "simple-loop" });
+
+      const prompt = await readFile(
+        join(dir, ".sandcastle", "prompt.md"),
+        "utf-8",
+      );
+      // Should default to github-issues and replace placeholders
+      expect(prompt).toContain("gh issue list");
+      expect(prompt).not.toContain("{{LIST_TASKS_COMMAND}}");
     });
   });
 
