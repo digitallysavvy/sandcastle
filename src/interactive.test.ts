@@ -594,6 +594,65 @@ describe("interactive()", () => {
     ).rejects.toThrow("copyToWorktree is not supported with head");
   });
 
+  // --- cwd option tests ---
+
+  it("uses cwd as host repo directory for worktree placement", async () => {
+    // Create a second git repo in a separate temp dir
+    const otherRepo = mkdtempSync(join(tmpdir(), "sandcastle-cwd-test-"));
+    execSync("git init", { cwd: otherRepo, stdio: "ignore" });
+    execSync('git config user.email "test@test.com"', {
+      cwd: otherRepo,
+      stdio: "ignore",
+    });
+    execSync('git config user.name "Test"', {
+      cwd: otherRepo,
+      stdio: "ignore",
+    });
+    writeFileSync(join(otherRepo, "README.md"), "# Other Repo\n");
+    execSync("git add .", { cwd: otherRepo, stdio: "ignore" });
+    execSync('git commit -m "initial"', { cwd: otherRepo, stdio: "ignore" });
+
+    let worktreeCwd: string | undefined;
+
+    const provider = makeTestProvider(async (_args, opts) => {
+      worktreeCwd = opts.cwd;
+      return { exitCode: 0 };
+    });
+
+    const result = await interactive({
+      agent: claudeCode("claude-opus-4-6"),
+      sandbox: provider,
+      prompt: "test",
+      cwd: otherRepo,
+    });
+
+    expect(result.exitCode).toBe(0);
+    // The worktree should be under the other repo's .sandcastle/worktrees/ dir
+    expect(worktreeCwd).toBeDefined();
+    expect(worktreeCwd!.startsWith(otherRepo)).toBe(true);
+  });
+
+  it("without cwd behaves identically to process.cwd()", async () => {
+    let worktreeCwd: string | undefined;
+
+    const provider = makeTestProvider(async (_args, opts) => {
+      worktreeCwd = opts.cwd;
+      return { exitCode: 0 };
+    });
+
+    const result = await interactive({
+      agent: claudeCode("claude-opus-4-6"),
+      sandbox: provider,
+      prompt: "test",
+      // no cwd option
+    });
+
+    expect(result.exitCode).toBe(0);
+    // The worktree should be under process.cwd() (which is hostDir)
+    expect(worktreeCwd).toBeDefined();
+    expect(worktreeCwd!.startsWith(hostDir)).toBe(true);
+  });
+
   it("copies files to worktree with copyToWorktree", async () => {
     // Create a file to copy
     const nodeModulesDir = join(hostDir, "node_modules");

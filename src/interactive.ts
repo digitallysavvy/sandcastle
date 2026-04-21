@@ -38,6 +38,7 @@ import {
   BUILT_IN_PROMPT_ARG_KEYS,
 } from "./PromptArgumentSubstitution.js";
 import { noSandbox } from "./sandboxes/no-sandbox.js";
+import { resolveCwd } from "./resolveCwd.js";
 
 export interface InteractiveOptions {
   /** Agent provider to use (e.g. claudeCode("claude-opus-4-6")) */
@@ -61,6 +62,14 @@ export interface InteractiveOptions {
   readonly promptArgs?: PromptArgs;
   /** Environment variables to inject into the sandbox. */
   readonly env?: Record<string, string>;
+  /**
+   * Host repo directory to use instead of `process.cwd()`.
+   *
+   * Relative paths resolve against `process.cwd()`; absolute paths pass
+   * through as-is. A {@link CwdError} is thrown if the path does not exist
+   * or is not a directory.
+   */
+  readonly cwd?: string;
 }
 
 export interface InteractiveResult {
@@ -128,11 +137,11 @@ export const interactive = async (
   const branch: string | undefined =
     branchStrategy.type === "branch" ? branchStrategy.branch : undefined;
 
-  const hostRepoDir = process.cwd();
   const isHeadMode = branchStrategy.type === "head";
   const sandboxProvider = resolvedSandbox;
 
   const inner = Effect.gen(function* () {
+    const hostRepoDir = yield* resolveCwd(options.cwd);
     const d = yield* Display;
 
     // 1. Resolve prompt (from string or file), or skip if neither provided
