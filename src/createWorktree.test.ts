@@ -213,6 +213,8 @@ describe("worktree.interactive()", () => {
             return { stdout: result, stderr: "", exitCode: 0 };
           },
           interactiveExec: fakeInteractiveExec,
+          copyFileIn: async () => {},
+          copyFileOut: async () => {},
           close: async () => {},
         };
         return handle;
@@ -412,6 +414,8 @@ describe("worktree.run()", () => {
             });
             return { stdout: result, stderr: "", exitCode: 0 };
           },
+          copyFileIn: async () => {},
+          copyFileOut: async () => {},
           close: async () => {},
         };
         return handle;
@@ -537,6 +541,8 @@ const testSandbox: SandboxProvider = createBindMountSandboxProvider({
   create: async (options) => ({
     worktreePath: options.worktreePath,
     exec: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
+    copyFileIn: async () => {},
+    copyFileOut: async () => {},
     close: async () => {},
   }),
 });

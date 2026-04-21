@@ -1,5 +1,28 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("node:child_process", async () => {
+  const actual =
+    await vi.importActual<typeof import("node:child_process")>(
+      "node:child_process",
+    );
+
+  return {
+    ...actual,
+    execFile: vi.fn(),
+    execFileSync: vi.fn(),
+    spawn: vi.fn(),
+  };
+});
+
+import { execFile } from "node:child_process";
 import { docker } from "./docker.js";
+import type { BindMountSandboxHandle } from "../SandboxProvider.js";
+
+const mockExecFile = vi.mocked(execFile);
+
+afterEach(() => {
+  mockExecFile.mockReset();
+});
 
 describe("docker()", () => {
   it("returns a SandboxProvider with tag 'bind-mount' and name 'docker'", () => {
@@ -101,5 +124,106 @@ describe("docker()", () => {
   it("accepts a network option as an array", () => {
     const provider = docker({ network: ["net1", "net2"] });
     expect(provider.tag).toBe("bind-mount");
+  });
+
+  it("copyFileIn calls docker cp with correct arguments", async () => {
+    mockExecFile.mockImplementation((_command, _args, ...rest: any[]) => {
+      const callback = rest[rest.length - 1];
+      callback(null, "", "");
+      return undefined as any;
+    });
+
+    const provider = docker();
+    const handle = await provider.create({
+      worktreePath: "/tmp/worktree",
+      hostRepoPath: "/tmp/repo",
+      mounts: [
+        { hostPath: "/tmp/worktree", sandboxPath: "/home/agent/workspace" },
+      ],
+      env: {},
+    });
+
+    const bmHandle = handle as BindMountSandboxHandle;
+    await bmHandle.copyFileIn("/host/file.txt", "/sandbox/file.txt");
+
+    const cpCall = mockExecFile.mock.calls.find(
+      ([cmd, args]) =>
+        cmd === "docker" &&
+        Array.isArray(args) &&
+        args[0] === "cp" &&
+        args[1] === "/host/file.txt",
+    );
+    expect(cpCall).toBeDefined();
+    const cpArgs = cpCall![1] as string[];
+    expect(cpArgs[0]).toBe("cp");
+    expect(cpArgs[1]).toBe("/host/file.txt");
+    expect(cpArgs[2]).toMatch(/^sandcastle-.*:\/sandbox\/file\.txt$/);
+
+    await handle.close();
+  });
+
+  it("copyFileOut calls docker cp with correct arguments", async () => {
+    mockExecFile.mockImplementation((_command, _args, ...rest: any[]) => {
+      const callback = rest[rest.length - 1];
+      callback(null, "", "");
+      return undefined as any;
+    });
+
+    const provider = docker();
+    const handle = await provider.create({
+      worktreePath: "/tmp/worktree",
+      hostRepoPath: "/tmp/repo",
+      mounts: [
+        { hostPath: "/tmp/worktree", sandboxPath: "/home/agent/workspace" },
+      ],
+      env: {},
+    });
+
+    const bmHandle = handle as BindMountSandboxHandle;
+    await bmHandle.copyFileOut("/sandbox/output.txt", "/host/output.txt");
+
+    const cpCall = mockExecFile.mock.calls.find(
+      ([cmd, args]) =>
+        cmd === "docker" &&
+        Array.isArray(args) &&
+        args[0] === "cp" &&
+        args[2] === "/host/output.txt",
+    );
+    expect(cpCall).toBeDefined();
+    const cpArgs = cpCall![1] as string[];
+    expect(cpArgs[0]).toBe("cp");
+    expect(cpArgs[1]).toMatch(/^sandcastle-.*:\/sandbox\/output\.txt$/);
+    expect(cpArgs[2]).toBe("/host/output.txt");
+
+    await handle.close();
+  });
+
+  it("copyFileIn rejects when docker cp fails", async () => {
+    mockExecFile.mockImplementation((_command, args, ...rest: any[]) => {
+      const callback = rest[rest.length - 1];
+      if (Array.isArray(args) && args[0] === "cp") {
+        callback(new Error("no such file"));
+      } else {
+        callback(null, "", "");
+      }
+      return undefined as any;
+    });
+
+    const provider = docker();
+    const handle = await provider.create({
+      worktreePath: "/tmp/worktree",
+      hostRepoPath: "/tmp/repo",
+      mounts: [
+        { hostPath: "/tmp/worktree", sandboxPath: "/home/agent/workspace" },
+      ],
+      env: {},
+    });
+
+    const bmHandle = handle as BindMountSandboxHandle;
+    await expect(
+      bmHandle.copyFileIn("/nonexistent", "/sandbox/file.txt"),
+    ).rejects.toThrow("docker cp (in) failed");
+
+    await handle.close();
   });
 });

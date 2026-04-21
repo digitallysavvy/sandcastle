@@ -54,6 +54,8 @@ const makeMockProvider = (): {
       const handle: BindMountSandboxHandle = {
         worktreePath: SANDBOX_REPO_DIR,
         exec: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
+        copyFileIn: async () => {},
+        copyFileOut: async () => {},
         close: async () => {
           closeCalls++;
         },

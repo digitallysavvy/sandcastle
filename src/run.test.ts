@@ -23,6 +23,8 @@ const testSandbox = createBindMountSandboxProvider({
   create: async () => ({
     worktreePath: "/home/agent/workspace",
     exec: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
+    copyFileIn: async () => {},
+    copyFileOut: async () => {},
     close: async () => {},
   }),
 });

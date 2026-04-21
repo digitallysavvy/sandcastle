@@ -47,6 +47,10 @@ export interface BindMountSandboxHandle {
     args: string[],
     options: InteractiveExecOptions,
   ): Promise<{ exitCode: number }>;
+  /** Copy a single file from the host into the sandbox. */
+  copyFileIn(hostPath: string, sandboxPath: string): Promise<void>;
+  /** Copy a single file from the sandbox to the host. */
+  copyFileOut(sandboxPath: string, hostPath: string): Promise<void>;
   /** Tear down the sandbox. */
   close(): Promise<void>;
 }

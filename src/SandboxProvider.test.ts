@@ -11,6 +11,8 @@ describe("createBindMountSandboxProvider", () => {
   const makeMockHandle = (): BindMountSandboxHandle => ({
     worktreePath: "/workspace",
     exec: vi.fn(async () => ({ stdout: "", stderr: "", exitCode: 0 })),
+    copyFileIn: vi.fn(async () => {}),
+    copyFileOut: vi.fn(async () => {}),
     close: vi.fn(async () => {}),
   });
 

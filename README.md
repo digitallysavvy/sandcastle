@@ -713,13 +713,15 @@ Sandcastle ships with built-in providers for Docker, Podman, and Vercel, but you
 
 Both provider types return a **sandbox handle** from their `create()` function. The handle exposes:
 
-| Method         | Required | Description                                                                  |
-| -------------- | -------- | ---------------------------------------------------------------------------- |
-| `exec`         | Both     | Run a command, optionally streaming stdout line-by-line via `options.onLine` |
-| `close`        | Both     | Tear down the sandbox                                                        |
-| `copyIn`       | Isolated | Copy a file or directory from the host into the sandbox                      |
-| `copyOut`      | Isolated | Copy a file from the sandbox to the host                                     |
-| `worktreePath` | Both     | Absolute path to the repo directory inside the sandbox                       |
+| Method         | Required   | Description                                                                  |
+| -------------- | ---------- | ---------------------------------------------------------------------------- |
+| `exec`         | Both       | Run a command, optionally streaming stdout line-by-line via `options.onLine` |
+| `close`        | Both       | Tear down the sandbox                                                        |
+| `copyFileIn`   | Bind-mount | Copy a single file from the host into the sandbox                            |
+| `copyFileOut`  | Bind-mount | Copy a single file from the sandbox to the host                              |
+| `copyIn`       | Isolated   | Copy a file or directory from the host into the sandbox                      |
+| `copyFileOut`  | Isolated   | Copy a single file from the sandbox to the host                              |
+| `worktreePath` | Both       | Absolute path to the repo directory inside the sandbox                       |
 
 ### `ExecResult`
 
@@ -812,6 +814,22 @@ const localProcess = () =>
               },
             );
           });
+        },
+
+        copyFileIn: async (hostPath: string, sandboxPath: string) => {
+          const { copyFile } = await import("node:fs/promises");
+          const { mkdir } = await import("node:fs/promises");
+          const { dirname } = await import("node:path");
+          await mkdir(dirname(sandboxPath), { recursive: true });
+          await copyFile(hostPath, sandboxPath);
+        },
+
+        copyFileOut: async (sandboxPath: string, hostPath: string) => {
+          const { copyFile } = await import("node:fs/promises");
+          const { mkdir } = await import("node:fs/promises");
+          const { dirname } = await import("node:path");
+          await mkdir(dirname(hostPath), { recursive: true });
+          await copyFile(sandboxPath, hostPath);
         },
 
         close: async () => {

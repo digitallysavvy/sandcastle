@@ -240,6 +240,36 @@ export const docker = (options?: DockerOptions): SandboxProvider => {
           });
         },
 
+        copyFileIn: (hostPath: string, sandboxPath: string): Promise<void> =>
+          new Promise((resolve, reject) => {
+            execFile(
+              "docker",
+              ["cp", hostPath, `${containerName}:${sandboxPath}`],
+              (error) => {
+                if (error) {
+                  reject(new Error(`docker cp (in) failed: ${error.message}`));
+                } else {
+                  resolve();
+                }
+              },
+            );
+          }),
+
+        copyFileOut: (sandboxPath: string, hostPath: string): Promise<void> =>
+          new Promise((resolve, reject) => {
+            execFile(
+              "docker",
+              ["cp", `${containerName}:${sandboxPath}`, hostPath],
+              (error) => {
+                if (error) {
+                  reject(new Error(`docker cp (out) failed: ${error.message}`));
+                } else {
+                  resolve();
+                }
+              },
+            );
+          }),
+
         close: async (): Promise<void> => {
           process.removeListener("exit", onExit);
           process.removeListener("SIGINT", onSignal);

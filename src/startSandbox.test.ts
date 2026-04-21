@@ -46,6 +46,8 @@ describe("startSandbox", () => {
           return {
             worktreePath: SANDBOX_REPO_DIR,
             exec: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
+            copyFileIn: async () => {},
+            copyFileOut: async () => {},
             close: async () => {},
           };
         },
@@ -84,6 +86,8 @@ describe("startSandbox", () => {
         create: async () => ({
           worktreePath: SANDBOX_REPO_DIR,
           exec: async () => ({ stdout: "hello", stderr: "", exitCode: 0 }),
+          copyFileIn: async () => {},
+          copyFileOut: async () => {},
           close: async () => {},
         }),
       });

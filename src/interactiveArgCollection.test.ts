@@ -68,6 +68,8 @@ describe("interactive arg collection", () => {
             return { stdout: result, stderr: "", exitCode: 0 };
           },
           interactiveExec: fakeInteractiveExec,
+          copyFileIn: async () => {},
+          copyFileOut: async () => {},
           close: async () => {},
         };
         return handle;

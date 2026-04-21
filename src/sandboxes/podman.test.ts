@@ -17,6 +17,7 @@ vi.mock("node:child_process", async () => {
 import { execFile, execFileSync } from "node:child_process";
 import { homedir } from "node:os";
 import { podman, defaultImageName } from "./podman.js";
+import type { BindMountSandboxHandle } from "../SandboxProvider.js";
 
 const mockExecFile = vi.mocked(execFile);
 const mockExecFileSync = vi.mocked(execFileSync);
@@ -526,6 +527,107 @@ describe("podman()", () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("chown"));
 
     warnSpy.mockRestore();
+    await handle.close();
+  });
+
+  it("copyFileIn calls podman cp with correct arguments", async () => {
+    mockExecFile.mockImplementation((_command, _args, ...rest: any[]) => {
+      const callback = rest[rest.length - 1];
+      callback(null, "", "");
+      return undefined as any;
+    });
+
+    const provider = podman();
+    const handle = await provider.create({
+      worktreePath: "/tmp/worktree",
+      hostRepoPath: "/tmp/repo",
+      mounts: [
+        { hostPath: "/tmp/worktree", sandboxPath: "/home/agent/workspace" },
+      ],
+      env: {},
+    });
+
+    const bmHandle = handle as BindMountSandboxHandle;
+    await bmHandle.copyFileIn("/host/file.txt", "/sandbox/file.txt");
+
+    const cpCall = mockExecFile.mock.calls.find(
+      ([cmd, args]) =>
+        cmd === "podman" &&
+        Array.isArray(args) &&
+        args[0] === "cp" &&
+        args[1] === "/host/file.txt",
+    );
+    expect(cpCall).toBeDefined();
+    const cpArgs = cpCall![1] as string[];
+    expect(cpArgs[0]).toBe("cp");
+    expect(cpArgs[1]).toBe("/host/file.txt");
+    expect(cpArgs[2]).toMatch(/^sandcastle-.*:\/sandbox\/file\.txt$/);
+
+    await handle.close();
+  });
+
+  it("copyFileOut calls podman cp with correct arguments", async () => {
+    mockExecFile.mockImplementation((_command, _args, ...rest: any[]) => {
+      const callback = rest[rest.length - 1];
+      callback(null, "", "");
+      return undefined as any;
+    });
+
+    const provider = podman();
+    const handle = await provider.create({
+      worktreePath: "/tmp/worktree",
+      hostRepoPath: "/tmp/repo",
+      mounts: [
+        { hostPath: "/tmp/worktree", sandboxPath: "/home/agent/workspace" },
+      ],
+      env: {},
+    });
+
+    const bmHandle = handle as BindMountSandboxHandle;
+    await bmHandle.copyFileOut("/sandbox/output.txt", "/host/output.txt");
+
+    const cpCall = mockExecFile.mock.calls.find(
+      ([cmd, args]) =>
+        cmd === "podman" &&
+        Array.isArray(args) &&
+        args[0] === "cp" &&
+        args[2] === "/host/output.txt",
+    );
+    expect(cpCall).toBeDefined();
+    const cpArgs = cpCall![1] as string[];
+    expect(cpArgs[0]).toBe("cp");
+    expect(cpArgs[1]).toMatch(/^sandcastle-.*:\/sandbox\/output\.txt$/);
+    expect(cpArgs[2]).toBe("/host/output.txt");
+
+    await handle.close();
+  });
+
+  it("copyFileIn rejects when podman cp fails", async () => {
+    mockExecFile.mockImplementation((_command, args, ...rest: any[]) => {
+      const callback = rest[rest.length - 1];
+      if (Array.isArray(args) && args[0] === "cp") {
+        callback(new Error("no such file"));
+      } else {
+        callback(null, "", "");
+      }
+      return undefined as any;
+    });
+
+    const provider = podman();
+    const handle = await provider.create({
+      worktreePath: "/tmp/worktree",
+      hostRepoPath: "/tmp/repo",
+      mounts: [
+        { hostPath: "/tmp/worktree", sandboxPath: "/home/agent/workspace" },
+      ],
+      env: {},
+    });
+
+    const bmHandle = handle as BindMountSandboxHandle;
+    await expect(
+      bmHandle.copyFileIn("/nonexistent", "/sandbox/file.txt"),
+    ).rejects.toThrow("podman cp (in) failed");
+
     await handle.close();
   });
 

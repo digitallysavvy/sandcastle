@@ -129,6 +129,8 @@ describe("interactive()", () => {
             return { stdout: result, stderr: "", exitCode: 0 };
           },
           interactiveExec: fakeInteractiveExec,
+          copyFileIn: async () => {},
+          copyFileOut: async () => {},
           close: async () => {},
         };
         return handle;
@@ -222,6 +224,8 @@ describe("interactive()", () => {
           return { stdout: result, stderr: "", exitCode: 0 };
         },
         // No interactiveExec
+        copyFileIn: async () => {},
+        copyFileOut: async () => {},
         close: async () => {},
       }),
     });

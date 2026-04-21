@@ -79,24 +79,40 @@ export const makeSandboxLayerFromHandle = (
       "copyIn" in handle
         ? (hostPath, sandboxPath) =>
             Effect.tryPromise({
-              try: () => handle.copyIn(hostPath, sandboxPath),
+              try: () =>
+                (handle as IsolatedSandboxHandle).copyIn(hostPath, sandboxPath),
               catch: (e) =>
                 new CopyError({
                   message: `copyIn failed: ${e instanceof Error ? e.message : String(e)}`,
                 }),
             })
-        : () =>
-            Effect.fail(
-              new CopyError({
-                message:
-                  "copyIn is not supported for bind-mount sandbox providers",
-              }),
-            ),
+        : "copyFileIn" in handle
+          ? (hostPath, sandboxPath) =>
+              Effect.tryPromise({
+                try: () =>
+                  (handle as BindMountSandboxHandle).copyFileIn(
+                    hostPath,
+                    sandboxPath,
+                  ),
+                catch: (e) =>
+                  new CopyError({
+                    message: `copyFileIn failed: ${e instanceof Error ? e.message : String(e)}`,
+                  }),
+              })
+          : () =>
+              Effect.fail(
+                new CopyError({
+                  message: "copyIn is not supported for this sandbox provider",
+                }),
+              ),
     copyFileOut:
       "copyFileOut" in handle
         ? (sandboxPath, hostPath) =>
             Effect.tryPromise({
-              try: () => handle.copyFileOut(sandboxPath, hostPath),
+              try: () =>
+                (
+                  handle as IsolatedSandboxHandle | BindMountSandboxHandle
+                ).copyFileOut(sandboxPath, hostPath),
               catch: (e) =>
                 new CopyError({
                   message: `copyFileOut failed: ${e instanceof Error ? e.message : String(e)}`,
@@ -106,7 +122,7 @@ export const makeSandboxLayerFromHandle = (
             Effect.fail(
               new CopyError({
                 message:
-                  "copyFileOut is not supported for bind-mount sandbox providers",
+                  "copyFileOut is not supported for this sandbox provider",
               }),
             ),
   });

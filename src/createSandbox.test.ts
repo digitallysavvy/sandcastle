@@ -22,6 +22,8 @@ const testSandbox = createBindMountSandboxProvider({
   create: async () => ({
     worktreePath: "/home/agent/workspace",
     exec: async () => ({ stdout: "", stderr: "", exitCode: 0 }),
+    copyFileIn: async () => {},
+    copyFileOut: async () => {},
     close: async () => {},
   }),
 });
@@ -570,6 +572,8 @@ describe("createSandbox", () => {
               exitCode: 0,
             };
           },
+          copyFileIn: async () => {},
+          copyFileOut: async () => {},
           close: async () => {
             closeCallCount++;
           },
@@ -643,6 +647,8 @@ describe("createSandbox", () => {
             exitCode: 0,
           };
         },
+        copyFileIn: async () => {},
+        copyFileOut: async () => {},
         close: async () => {
           providerClosed = true;
         },
@@ -873,6 +879,8 @@ describe("createSandbox", () => {
           receivedArgs.push(...args);
           return { exitCode: 0 };
         },
+        copyFileIn: async () => {},
+        copyFileOut: async () => {},
         close: async () => {},
       }),
     });
@@ -921,6 +929,8 @@ describe("createSandbox", () => {
             };
           },
           interactiveExec: async () => ({ exitCode: 0 }),
+          copyFileIn: async () => {},
+          copyFileOut: async () => {},
           close: async () => {},
         };
       },
@@ -979,6 +989,8 @@ describe("createSandbox", () => {
           await execAsync('git commit -m "interactive commit"', { cwd });
           return { exitCode: 0 };
         },
+        copyFileIn: async () => {},
+        copyFileOut: async () => {},
         close: async () => {},
       }),
     });
@@ -1022,6 +1034,8 @@ describe("createSandbox", () => {
             exitCode: 0,
           };
         },
+        copyFileIn: async () => {},
+        copyFileOut: async () => {},
         close: async () => {},
       }),
     });
@@ -1069,6 +1083,8 @@ describe("createSandbox", () => {
           receivedArgs.push(...args);
           return { exitCode: 0 };
         },
+        copyFileIn: async () => {},
+        copyFileOut: async () => {},
         close: async () => {},
       }),
     });
