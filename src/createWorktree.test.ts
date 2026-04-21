@@ -48,7 +48,7 @@ describe("createWorktree", () => {
 
     const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "test-branch" },
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -68,7 +68,7 @@ describe("createWorktree", () => {
 
     const ws = await createWorktree({
       branchStrategy: { type: "merge-to-head" },
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -99,7 +99,7 @@ describe("createWorktree", () => {
     const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "copy-test" },
       copyToWorktree: ["node_modules.txt"],
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -117,7 +117,7 @@ describe("createWorktree", () => {
 
     const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "clean-close" },
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     const worktreePath = ws.worktreePath;
@@ -135,7 +135,7 @@ describe("createWorktree", () => {
 
     const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "dirty-close" },
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     // Make worktree dirty
@@ -161,7 +161,7 @@ describe("createWorktree", () => {
     {
       await using ws = await createWorktree({
         branchStrategy: { type: "branch", branch: "dispose-test" },
-        _test: { hostRepoDir: hostDir },
+        cwd: hostDir,
       });
       worktreePath = ws.worktreePath;
       expect(existsSync(worktreePath)).toBe(true);
@@ -177,7 +177,7 @@ describe("createWorktree", () => {
 
     const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "idempotent-close" },
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     const result1 = await ws.close();
@@ -232,7 +232,7 @@ describe("worktree.interactive()", () => {
 
     const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "interactive-test" },
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -265,7 +265,7 @@ describe("worktree.interactive()", () => {
 
     const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "sandbox-test" },
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -299,7 +299,7 @@ describe("worktree.interactive()", () => {
 
     const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "persist-test" },
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -338,7 +338,7 @@ describe("worktree.interactive()", () => {
 
     const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "result-test" },
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -431,7 +431,7 @@ describe("worktree.run()", () => {
 
     const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "run-test" },
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -466,7 +466,7 @@ describe("worktree.run()", () => {
 
     const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "persist-run-test" },
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -505,7 +505,7 @@ describe("worktree.run()", () => {
 
     const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "commits-run-test" },
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -555,7 +555,7 @@ describe("worktree.createSandbox()", () => {
 
     const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "ws-sandbox-test" },
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -585,7 +585,7 @@ describe("worktree.createSandbox()", () => {
 
     const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "split-ownership" },
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -615,7 +615,7 @@ describe("worktree.createSandbox()", () => {
 
     const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "ws-close-after-sandbox" },
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     const worktreePath = ws.worktreePath;
@@ -644,7 +644,7 @@ describe("worktree.createSandbox()", () => {
 
     const ws = await createWorktree({
       branchStrategy: { type: "branch", branch: "sequential-sandbox" },
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {

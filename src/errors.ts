@@ -167,8 +167,13 @@ export class SessionCaptureError extends Data.TaggedError(
   readonly sessionId: string;
 }> {}
 
+/** The provided `cwd` path does not exist or is not a directory. */
+export { CwdError } from "./resolveCwd.js";
+import type { CwdError } from "./resolveCwd.js";
+
 /** Union of all sandbox-related errors */
 export type SandboxError =
+  | CwdError
   | ExecError
   | ExecHostError
   | CopyError

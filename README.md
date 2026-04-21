@@ -326,12 +326,15 @@ Use `createWorktree()` when you need a worktree (git worktree) as an independent
 
 Only `branch` and `merge-to-head` strategies are accepted; `head` is a compile-time type error since it means no worktree.
 
+Pass `cwd` to target a repo other than `process.cwd()`. Relative paths resolve against `process.cwd()`; absolute paths pass through. A `CwdError` is thrown if the path does not exist or is not a directory.
+
 ```typescript
 import { createWorktree } from "@ai-hero/sandcastle";
 
 await using wt = await createWorktree({
   branchStrategy: { type: "branch", branch: "agent/fix-42" },
   copyToWorktree: ["node_modules"],
+  cwd: "/path/to/other-repo", // optional — defaults to process.cwd()
 });
 
 console.log(wt.worktreePath); // host path to the worktree

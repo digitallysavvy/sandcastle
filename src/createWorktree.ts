@@ -37,6 +37,7 @@ import { startSandbox } from "./startSandbox.js";
 import { syncOut } from "./syncOut.js";
 import * as WorktreeManager from "./WorktreeManager.js";
 import { copyToWorktree } from "./CopyToWorktree.js";
+import { resolveCwd } from "./resolveCwd.js";
 import {
   type PromptArgs,
   substitutePromptArgs,
@@ -53,16 +54,21 @@ export type WorktreeBranchStrategy =
 export interface CreateWorktreeOptions {
   /** Branch strategy — only 'branch' and 'merge-to-head' are allowed. */
   readonly branchStrategy: WorktreeBranchStrategy;
+  /**
+   * Host repo directory. Replaces `process.cwd()` as the anchor for
+   * `.sandcastle/worktrees/`, `.sandcastle/.env`, and git operations.
+   *
+   * - Relative paths are resolved against `process.cwd()`.
+   * - Absolute paths are used as-is.
+   * - Defaults to `process.cwd()` when omitted.
+   */
+  readonly cwd?: string;
   /** Paths relative to the host repo root to copy into the worktree at creation time. */
   readonly copyToWorktree?: string[];
   /** Lifecycle hooks grouped by execution location (host or sandbox).
    *  Only `host.onWorktreeReady` is executed here — other hooks are passed through
    *  to `run()`, `interactive()`, or `createSandbox()`. */
   readonly hooks?: SandboxHooks;
-  /** @internal Test-only overrides. */
-  readonly _test?: {
-    readonly hostRepoDir?: string;
-  };
 }
 
 export interface WorktreeInteractiveOptions {
@@ -168,14 +174,13 @@ export interface Worktree {
 export const createWorktree = async (
   options: CreateWorktreeOptions,
 ): Promise<Worktree> => {
-  const hostRepoDir = options._test?.hostRepoDir ?? process.cwd();
-
   const branch =
     options.branchStrategy.type === "branch"
       ? options.branchStrategy.branch
       : undefined;
 
-  const worktreeInfo = await Effect.gen(function* () {
+  const { hostRepoDir, worktreeInfo } = await Effect.gen(function* () {
+    const hostRepoDir = yield* resolveCwd(options.cwd);
     yield* WorktreeManager.pruneStale(hostRepoDir).pipe(
       Effect.catchAll(() => Effect.void),
     );
@@ -187,7 +192,7 @@ export const createWorktree = async (
     if (options.hooks?.host?.onWorktreeReady?.length) {
       yield* runHostHooks(options.hooks.host.onWorktreeReady, info.path);
     }
-    return info;
+    return { hostRepoDir, worktreeInfo: info };
   }).pipe(Effect.provide(NodeContext.layer), Effect.runPromise);
 
   let closed = false;

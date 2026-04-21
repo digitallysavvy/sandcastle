@@ -36,6 +36,7 @@ export {
 export type { SessionStore } from "./SessionStore.js";
 export type { SandboxHooks } from "./SandboxLifecycle.js";
 export type { MountConfig } from "./MountConfig.js";
+export { CwdError } from "./resolveCwd.js";
 export { claudeCode, codex, opencode, pi } from "./AgentProvider.js";
 export type {
   AgentProvider,
