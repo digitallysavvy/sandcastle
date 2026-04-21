@@ -42,12 +42,22 @@ import { startSandbox } from "./startSandbox.js";
 import { syncOut } from "./syncOut.js";
 import * as WorktreeManager from "./WorktreeManager.js";
 import { copyToWorktree } from "./CopyToWorktree.js";
+import { resolveCwd } from "./resolveCwd.js";
 
 export interface CreateSandboxOptions {
   /** Explicit branch for the worktree (required). */
   readonly branch: string;
   /** Sandbox provider (e.g. docker({ imageName: "sandcastle:myrepo" })). */
   readonly sandbox: SandboxProvider;
+  /**
+   * Host repo directory. Replaces `process.cwd()` as the anchor for
+   * `.sandcastle/worktrees/`, `.sandcastle/.env`, and git operations.
+   *
+   * - Relative paths are resolved against `process.cwd()`.
+   * - Absolute paths are used as-is.
+   * - Defaults to `process.cwd()` when omitted.
+   */
+  readonly cwd?: string;
   /** Lifecycle hooks grouped by execution location (host or sandbox). */
   readonly hooks?: SandboxHooks;
   /** Paths relative to the host repo root to copy into the worktree at creation time. */
@@ -56,7 +66,6 @@ export interface CreateSandboxOptions {
   readonly throwOnDuplicateWorktree?: boolean;
   /** @internal Test-only overrides to bypass the sandbox provider. */
   readonly _test?: {
-    readonly hostRepoDir?: string;
     readonly buildSandboxLayer?: (
       sandboxDir: string,
     ) => Layer.Layer<SandboxTag>;
@@ -542,23 +551,22 @@ export const createSandboxFromWorktree = async (
 export const createSandbox = async (
   options: CreateSandboxOptions,
 ): Promise<Sandbox> => {
-  const hostRepoDir = options._test?.hostRepoDir ?? process.cwd();
   const { branch } = options;
   const isTestMode = !!options._test?.buildSandboxLayer;
 
-  // 1. Prune stale worktrees + create worktree on the explicit branch
-  const worktreeInfo = await Effect.runPromise(
-    WorktreeManager.pruneStale(hostRepoDir)
-      .pipe(Effect.catchAll(() => Effect.void))
-      .pipe(
-        Effect.andThen(
-          WorktreeManager.create(hostRepoDir, {
-            branch,
-            throwOnDuplicateWorktree: options.throwOnDuplicateWorktree,
-          }),
-        ),
-      )
-      .pipe(Effect.provide(NodeContext.layer)),
+  // 1. Resolve cwd, prune stale worktrees + create worktree on the explicit branch
+  const { hostRepoDir, worktreeInfo } = await Effect.runPromise(
+    Effect.gen(function* () {
+      const hostRepoDir = yield* resolveCwd(options.cwd);
+      yield* WorktreeManager.pruneStale(hostRepoDir).pipe(
+        Effect.catchAll(() => Effect.void),
+      );
+      const worktreeInfo = yield* WorktreeManager.create(hostRepoDir, {
+        branch,
+        throwOnDuplicateWorktree: options.throwOnDuplicateWorktree,
+      });
+      return { hostRepoDir, worktreeInfo };
+    }).pipe(Effect.provide(NodeContext.layer)),
   );
 
   const worktreePath = worktreeInfo.path;

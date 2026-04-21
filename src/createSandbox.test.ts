@@ -191,8 +191,8 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-branch",
       sandbox: testSandbox,
+      cwd: hostDir,
       _test: {
-        hostRepoDir: hostDir,
         buildSandboxLayer: (sandboxDir) => makeLocalSandboxLayer(sandboxDir),
       },
     });
@@ -215,8 +215,8 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-run-branch",
       sandbox: testSandbox,
+      cwd: hostDir,
       _test: {
-        hostRepoDir: hostDir,
         buildSandboxLayer: (sandboxDir) =>
           makeMockAgentLayer(sandboxDir, async () => "agent output"),
       },
@@ -246,8 +246,8 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-clean-close",
       sandbox: testSandbox,
+      cwd: hostDir,
       _test: {
-        hostRepoDir: hostDir,
         buildSandboxLayer: (sandboxDir) => makeLocalSandboxLayer(sandboxDir),
       },
     });
@@ -268,8 +268,8 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-dirty-close",
       sandbox: testSandbox,
+      cwd: hostDir,
       _test: {
-        hostRepoDir: hostDir,
         buildSandboxLayer: (sandboxDir) => makeLocalSandboxLayer(sandboxDir),
       },
     });
@@ -298,8 +298,8 @@ describe("createSandbox", () => {
       await using sandbox = await createSandbox({
         branch: "test-dispose-branch",
         sandbox: testSandbox,
+        cwd: hostDir,
         _test: {
-          hostRepoDir: hostDir,
           buildSandboxLayer: (sandboxDir) => makeLocalSandboxLayer(sandboxDir),
         },
       });
@@ -319,8 +319,8 @@ describe("createSandbox", () => {
     const sandbox1 = await createSandbox({
       branch: "collision-branch",
       sandbox: testSandbox,
+      cwd: hostDir,
       _test: {
-        hostRepoDir: hostDir,
         buildSandboxLayer: (sandboxDir) => makeLocalSandboxLayer(sandboxDir),
       },
     });
@@ -330,8 +330,8 @@ describe("createSandbox", () => {
         createSandbox({
           branch: "collision-branch",
           sandbox: testSandbox,
+          cwd: hostDir,
           _test: {
-            hostRepoDir: hostDir,
             buildSandboxLayer: (sandboxDir) =>
               makeLocalSandboxLayer(sandboxDir),
           },
@@ -351,8 +351,8 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-commits-branch",
       sandbox: testSandbox,
+      cwd: hostDir,
       _test: {
-        hostRepoDir: hostDir,
         buildSandboxLayer: (sandboxDir) =>
           makeMockAgentLayer(sandboxDir, async (cwd) => {
             await writeFile(join(cwd, "agent-created.txt"), "new file");
@@ -385,8 +385,8 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-idempotent-close",
       sandbox: testSandbox,
+      cwd: hostDir,
       _test: {
-        hostRepoDir: hostDir,
         buildSandboxLayer: (sandboxDir) => makeLocalSandboxLayer(sandboxDir),
       },
     });
@@ -407,8 +407,8 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-multi-run",
       sandbox: testSandbox,
+      cwd: hostDir,
       _test: {
-        hostRepoDir: hostDir,
         buildSandboxLayer: (sandboxDir) =>
           makeMockAgentLayer(sandboxDir, async () => "mock output"),
       },
@@ -446,8 +446,8 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-commit-accumulation",
       sandbox: testSandbox,
+      cwd: hostDir,
       _test: {
-        hostRepoDir: hostDir,
         buildSandboxLayer: (sandboxDir) =>
           makeMockAgentLayer(sandboxDir, async (cwd) => {
             runCount++;
@@ -507,8 +507,8 @@ describe("createSandbox", () => {
           ],
         },
       },
+      cwd: hostDir,
       _test: {
-        hostRepoDir: hostDir,
         buildSandboxLayer: (sandboxDir) => makeLocalSandboxLayer(sandboxDir),
       },
     });
@@ -584,7 +584,7 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-create-once",
       sandbox: spyProvider,
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -658,7 +658,7 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-close-delegates",
       sandbox: spyProvider,
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     expect(providerClosed).toBe(false);
@@ -678,8 +678,8 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-state-persistence",
       sandbox: testSandbox,
+      cwd: hostDir,
       _test: {
-        hostRepoDir: hostDir,
         buildSandboxLayer: (sandboxDir) =>
           makeMockAgentLayer(sandboxDir, async (cwd) => {
             runNumber++;
@@ -736,7 +736,7 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-isolated-branch",
       sandbox: provider,
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -758,7 +758,7 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-isolated-commits",
       sandbox: provider,
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -791,7 +791,7 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-isolated-close",
       sandbox: provider,
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     const worktreePath = sandbox.worktreePath;
@@ -820,7 +820,7 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-isolated-multi-run",
       sandbox: provider,
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -888,7 +888,7 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-interactive",
       sandbox: interactiveProvider,
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -939,7 +939,7 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-interactive-reuse",
       sandbox: interactiveProvider,
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -998,7 +998,7 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-interactive-commits",
       sandbox: interactiveProvider,
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -1043,7 +1043,7 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-no-interactive",
       sandbox: noInteractiveProvider,
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -1092,7 +1092,7 @@ describe("createSandbox", () => {
     const sandbox = await createSandbox({
       branch: "test-interactive-args",
       sandbox: interactiveProvider,
-      _test: { hostRepoDir: hostDir },
+      cwd: hostDir,
     });
 
     try {
@@ -1123,8 +1123,8 @@ describe("createSandbox", () => {
       branch: "test-copy",
       sandbox: testSandbox,
       copyToWorktree: ["config.json"],
+      cwd: hostDir,
       _test: {
-        hostRepoDir: hostDir,
         buildSandboxLayer: (sandboxDir) => makeLocalSandboxLayer(sandboxDir),
       },
     });

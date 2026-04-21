@@ -272,13 +272,14 @@ if (closeResult.preservedWorktreePath) {
 
 #### `CreateSandboxOptions`
 
-| Option                     | Type            | Default | Description                                                              |
-| -------------------------- | --------------- | ------- | ------------------------------------------------------------------------ |
-| `branch`                   | string          | —       | **Required.** Explicit branch for the sandbox                            |
-| `sandbox`                  | SandboxProvider | —       | **Required.** Sandbox provider (e.g. `docker()`, `podman()`)             |
-| `hooks`                    | SandboxHooks    | —       | Lifecycle hooks (`host.*`, `sandbox.*`) — run once at creation time      |
-| `copyToWorktree`           | string[]        | —       | Host-relative file paths to copy into the sandbox at creation time       |
-| `throwOnDuplicateWorktree` | boolean         | `true`  | When `false`, reuse an existing worktree instead of failing on collision |
+| Option                     | Type            | Default         | Description                                                              |
+| -------------------------- | --------------- | --------------- | ------------------------------------------------------------------------ |
+| `branch`                   | string          | —               | **Required.** Explicit branch for the sandbox                            |
+| `sandbox`                  | SandboxProvider | —               | **Required.** Sandbox provider (e.g. `docker()`, `podman()`)             |
+| `cwd`                      | string          | `process.cwd()` | Host repo directory — relative paths resolve against `process.cwd()`     |
+| `hooks`                    | SandboxHooks    | —               | Lifecycle hooks (`host.*`, `sandbox.*`) — run once at creation time      |
+| `copyToWorktree`           | string[]        | —               | Host-relative file paths to copy into the sandbox at creation time       |
+| `throwOnDuplicateWorktree` | boolean         | `true`          | When `false`, reuse an existing worktree instead of failing on collision |
 
 #### `Sandbox`
 
