@@ -2,4 +2,4 @@
 "@ai-hero/sandcastle": patch
 ---
 
-Remove duplicate command logging in shell expression expansion. Each command now appears once in the task log (with its token count), instead of twice.
+Fix duplicate command entries appearing in the task log. Each command now appears once (with its token count).
