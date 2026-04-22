@@ -107,7 +107,11 @@ const listWorktrees = (
  * - If `branch` is specified, checks out that branch.
  * - If not, creates a temporary `sandcastle/<timestamp>` branch.
  *
- * Fails with a clear error if the branch is already checked out in another worktree.
+ * When `branch` collides with an existing managed worktree:
+ * - Clean → reuses the existing worktree.
+ * - Dirty (uncommitted changes) → throws with actionable suggestions.
+ *
+ * Collisions with the main working tree or external worktrees always throw.
  */
 export const create = (
   repoDir: string,
