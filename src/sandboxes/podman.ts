@@ -25,10 +25,8 @@ import {
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
-import { Effect } from "effect";
 import type { MountConfig } from "../MountConfig.js";
 import { SANDBOX_REPO_DIR } from "../SandboxFactory.js";
-import { chownInContainer } from "../PodmanLifecycle.js";
 
 export interface PodmanOptions {
   /** Podman image name (default: derived from repo directory name). */
@@ -44,11 +42,26 @@ export interface PodmanOptions {
   /**
    * User namespace mode for rootless Podman.
    *
-   * - `"keep-id"` (default) — maps host UID 1:1 into the container,
-   *   so bind-mounted files have correct ownership. Required for rootless Podman.
+   * - `"keep-id"` (default) — maps host UID to `containerUid` inside the
+   *   container via `--userns=keep-id:uid=N,gid=N`, so both bind-mounted
+   *   files and image-built files have correct ownership without chown.
    * - `false` — disable; use for rootful Podman setups.
    */
   readonly userns?: "keep-id" | false;
+  /**
+   * The UID of the `agent` user inside the container image (default: 1000).
+   *
+   * Must match the UID set in the Containerfile. Used with `--userns=keep-id`
+   * to map the host user to this UID inside the container.
+   */
+  readonly containerUid?: number;
+  /**
+   * The GID of the `agent` user inside the container image (default: 1000).
+   *
+   * Must match the GID set in the Containerfile. Used with `--userns=keep-id`
+   * to map the host group to this GID inside the container.
+   */
+  readonly containerGid?: number;
   /**
    * Additional host directories to bind-mount into the sandbox.
    *
@@ -81,6 +94,8 @@ export const podman = (options?: PodmanOptions): SandboxProvider => {
   const configuredImageName = options?.imageName;
   const selinuxLabel = options?.selinuxLabel ?? "z";
   const userns = options?.userns ?? "keep-id";
+  const containerUid = options?.containerUid ?? 1000;
+  const containerGid = options?.containerGid ?? 1000;
   const userMounts = options?.mounts ? resolveUserMounts(options.mounts) : [];
 
   return createBindMountSandboxProvider({
@@ -114,16 +129,16 @@ export const podman = (options?: PodmanOptions): SandboxProvider => {
       // Pre-flight: verify image exists locally
       await checkImageExists(imageName);
 
-      const hostUid = process.getuid?.() ?? 1000;
-      const hostGid = process.getgid?.() ?? 1000;
-
       const env = { ...createOptions.env, HOME: "/home/agent" };
       const envArgs = Object.entries(env).flatMap(([key, value]) => [
         "-e",
         `${key}=${value}`,
       ]);
       const volumeArgs = volumeMounts.flatMap((v) => ["-v", v]);
-      const usernsArgs = userns ? [`--userns=${userns}`] : [];
+      const usernsArgs = userns
+        ? [`--userns=keep-id:uid=${containerUid},gid=${containerGid}`]
+        : [];
+      const userArgs = ["--user", `${containerUid}:${containerGid}`];
       const networks = options?.network
         ? Array.isArray(options.network)
           ? options.network
@@ -140,8 +155,7 @@ export const podman = (options?: PodmanOptions): SandboxProvider => {
             "-d",
             "--name",
             containerName,
-            "--user",
-            `${hostUid}:${hostGid}`,
+            ...userArgs,
             ...usernsArgs,
             ...networkArgs,
             "-w",
@@ -162,13 +176,6 @@ export const podman = (options?: PodmanOptions): SandboxProvider => {
           },
         );
       });
-
-      // Fix /home/agent ownership for the container user (parity with Docker provider).
-      // On macOS rootless Podman with --userns=keep-id, the host UID may differ
-      // from UID 1000 in the image, making /home/agent unwritable.
-      await Effect.runPromise(
-        chownInContainer(containerName, `${hostUid}:${hostGid}`, "/home/agent"),
-      );
 
       // Set up signal handlers for cleanup
       const onExit = () => {

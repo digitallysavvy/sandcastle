@@ -10,7 +10,6 @@ import { execFile } from "node:child_process";
 import {
   buildImage,
   removeImage,
-  chownInContainer,
 } from "./PodmanLifecycle.js";
 
 const mockExecFile = vi.mocked(execFile);
@@ -97,79 +96,6 @@ describe("PodmanLifecycle", () => {
       const result = await Effect.runPromiseExit(removeImage("my-image"));
 
       expect(result._tag).toBe("Failure");
-    });
-  });
-
-  describe("chownInContainer", () => {
-    it("runs podman exec -u root chown -R with the given owner and path", async () => {
-      mockExecFile.mockImplementation((_cmd, _args, _opts, cb: any) => {
-        cb(null, "", "");
-        return undefined as any;
-      });
-
-      await Effect.runPromise(
-        chownInContainer("my-ctr", "501:20", "/home/agent"),
-      );
-
-      expect(mockExecFile).toHaveBeenCalledWith(
-        "podman",
-        [
-          "exec",
-          "-u",
-          "root",
-          "my-ctr",
-          "chown",
-          "-R",
-          "501:20",
-          "/home/agent",
-        ],
-        expect.any(Object),
-        expect.any(Function),
-      );
-    });
-
-    it("succeeds silently when chown succeeds", async () => {
-      mockExecFile.mockImplementation((_cmd, _args, _opts, cb: any) => {
-        cb(null, "", "");
-        return undefined as any;
-      });
-
-      await Effect.runPromise(
-        chownInContainer("ctr", "1000:1000", "/home/agent"),
-      );
-    });
-
-    it("does not propagate error when chown fails", async () => {
-      mockExecFile.mockImplementation((_cmd, _args, _opts, cb: any) => {
-        const err = new Error("chown: Read-only file system");
-        (err as any).code = 1;
-        cb(err, "", "chown: Read-only file system");
-        return undefined as any;
-      });
-
-      // Should NOT throw — chown failure is non-fatal
-      await Effect.runPromise(
-        chownInContainer("ctr", "1000:1000", "/home/agent"),
-      );
-    });
-
-    it("logs a warning when chown fails", async () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-      mockExecFile.mockImplementation((_cmd, _args, _opts, cb: any) => {
-        const err = new Error("chown failed");
-        (err as any).code = 1;
-        cb(err, "", "chown: Read-only file system");
-        return undefined as any;
-      });
-
-      await Effect.runPromise(
-        chownInContainer("ctr", "1000:1000", "/home/agent"),
-      );
-
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("chown"));
-
-      warnSpy.mockRestore();
     });
   });
 });

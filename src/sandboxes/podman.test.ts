@@ -284,7 +284,35 @@ describe("podman()", () => {
       ([, args]) => Array.isArray(args) && args[0] === "run",
     )?.[1] as string[];
 
-    expect(runArgs).toContain("--userns=keep-id");
+    expect(runArgs).toContain("--userns=keep-id:uid=1000,gid=1000");
+
+    await handle.close();
+  });
+
+  it("passes custom containerUid/containerGid to --userns and --user", async () => {
+    mockExecFile.mockImplementation((_command, _args, ...rest: any[]) => {
+      const callback = rest[rest.length - 1];
+      callback(null, "", "");
+      return undefined as any;
+    });
+
+    const provider = podman({ containerUid: 500, containerGid: 500 });
+    const handle = await provider.create({
+      worktreePath: "/tmp/worktree",
+      hostRepoPath: "/tmp/repo",
+      mounts: [
+        { hostPath: "/tmp/worktree", sandboxPath: "/home/agent/workspace" },
+      ],
+      env: {},
+    });
+
+    const runArgs = mockExecFile.mock.calls.find(
+      ([, args]) => Array.isArray(args) && args[0] === "run",
+    )?.[1] as string[];
+
+    expect(runArgs).toContain("--userns=keep-id:uid=500,gid=500");
+    const userIdx = runArgs.indexOf("--user");
+    expect(runArgs[userIdx + 1]).toBe("500:500");
 
     await handle.close();
   });
@@ -310,7 +338,7 @@ describe("podman()", () => {
       ([, args]) => Array.isArray(args) && args[0] === "run",
     )?.[1] as string[];
 
-    expect(runArgs).not.toContain("--userns=keep-id");
+    expect(runArgs).not.toContain("--userns=keep-id:uid=1000,gid=1000");
 
     await handle.close();
   });
@@ -461,7 +489,7 @@ describe("podman()", () => {
     await handle.close();
   });
 
-  it("runs chown on /home/agent after container start", async () => {
+  it("does not run chown after container start", async () => {
     mockExecFile.mockImplementation((_command, _args, ...rest: any[]) => {
       const callback = rest[rest.length - 1];
       callback(null, "", "");
@@ -478,55 +506,15 @@ describe("podman()", () => {
       env: {},
     });
 
-    // Find the chown exec call (podman exec -u root <name> chown -R ...)
+    // Verify no chown exec call was made
     const chownCall = mockExecFile.mock.calls.find(
       ([cmd, args]) =>
         cmd === "podman" &&
         Array.isArray(args) &&
-        args[0] === "exec" &&
-        args[1] === "-u" &&
-        args[2] === "root" &&
-        args[4] === "chown",
+        args.includes("chown"),
     );
-    expect(chownCall).toBeDefined();
-    const chownArgs = chownCall![1] as string[];
-    expect(chownArgs).toContain("-R");
-    expect(chownArgs[chownArgs.length - 1]).toBe("/home/agent");
+    expect(chownCall).toBeUndefined();
 
-    await handle.close();
-  });
-
-  it("does not fail sandbox creation when chown fails", async () => {
-    mockExecFile.mockImplementation((_command, args, ...rest: any[]) => {
-      const callback = rest[rest.length - 1];
-
-      // Fail the chown exec call
-      if (Array.isArray(args) && args[0] === "exec" && args.includes("chown")) {
-        const err = new Error("chown: Read-only file system");
-        (err as any).code = 1;
-        callback(err, "", "chown: Read-only file system");
-      } else {
-        callback(null, "", "");
-      }
-      return undefined as any;
-    });
-
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    const provider = podman();
-    // Should NOT throw despite chown failing
-    const handle = await provider.create({
-      worktreePath: "/tmp/worktree",
-      hostRepoPath: "/tmp/repo",
-      mounts: [
-        { hostPath: "/tmp/worktree", sandboxPath: "/home/agent/workspace" },
-      ],
-      env: {},
-    });
-
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("chown"));
-
-    warnSpy.mockRestore();
     await handle.close();
   });
 
