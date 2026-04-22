@@ -18,7 +18,6 @@ import { Effect } from "effect";
 import {
   startContainer,
   removeContainer,
-  chownInContainer,
 } from "../DockerLifecycle.js";
 import {
   createBindMountSandboxProvider,
@@ -109,14 +108,6 @@ export const docker = (options?: DockerOptions): SandboxProvider => {
             user: `${hostUid}:${hostGid}`,
             network: options?.network,
           },
-        ).pipe(
-          Effect.andThen(
-            chownInContainer(
-              containerName,
-              `${hostUid}:${hostGid}`,
-              "/home/agent",
-            ),
-          ),
         ),
       );
 
