@@ -241,6 +241,22 @@ const parseCodexStreamLine = (line: string): ParsedStreamEvent[] => {
       return [{ type: "tool_call", name: "Bash", args: obj.item.command }];
     }
 
+    // Codex emits error events on stdout (not stderr) for auth failures,
+    // rate limits, and API errors. Capture them as result events so the
+    // Orchestrator's stderr-empty fallback can surface them to the user.
+    if (obj.type === "error") {
+      const err = obj.error;
+      let msg: string | undefined;
+      if (typeof err === "string") {
+        msg = err;
+      } else if (typeof err === "object" && err !== null && typeof err.message === "string") {
+        msg = err.message;
+      } else if (typeof obj.message === "string") {
+        msg = obj.message;
+      }
+      return msg ? [{ type: "result", result: msg }] : [];
+    }
+
     // turn.completed → skip
   } catch {
     // Not valid JSON — skip

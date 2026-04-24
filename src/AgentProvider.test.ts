@@ -632,6 +632,50 @@ describe("codex factory", () => {
     );
   });
 
+  // --- error event parsing tests ---
+
+  it("parseStreamLine captures error event with nested error object as result", () => {
+    const provider = codex("gpt-5.4-mini");
+    const line = JSON.stringify({
+      type: "error",
+      error: { type: "server_error", message: "Internal server error" },
+    });
+    expect(provider.parseStreamLine(line)).toEqual([
+      { type: "result", result: "Internal server error" },
+    ]);
+  });
+
+  it("parseStreamLine captures error event with string error as result", () => {
+    const provider = codex("gpt-5.4-mini");
+    const line = JSON.stringify({
+      type: "error",
+      error: "Authentication failed: invalid API key",
+    });
+    expect(provider.parseStreamLine(line)).toEqual([
+      { type: "result", result: "Authentication failed: invalid API key" },
+    ]);
+  });
+
+  it("parseStreamLine captures error event with top-level message as result", () => {
+    const provider = codex("gpt-5.4-mini");
+    const line = JSON.stringify({
+      type: "error",
+      message: "Rate limit exceeded",
+    });
+    expect(provider.parseStreamLine(line)).toEqual([
+      { type: "result", result: "Rate limit exceeded" },
+    ]);
+  });
+
+  it("parseStreamLine returns empty array for error event with no extractable message", () => {
+    const provider = codex("gpt-5.4-mini");
+    const line = JSON.stringify({
+      type: "error",
+      code: "unknown",
+    });
+    expect(provider.parseStreamLine(line)).toEqual([]);
+  });
+
   it("accepts an env option and exposes it on the provider", () => {
     const provider = codex("gpt-5.4-mini", { env: { OPENAI_KEY: "xyz" } });
     expect(provider.env).toEqual({ OPENAI_KEY: "xyz" });
