@@ -556,28 +556,19 @@ describe("patchGitMountsForWindows", () => {
 describe("formatVolumeMount", () => {
   it("formats basic mount without options", () => {
     expect(
-      formatVolumeMount(
-        { hostPath: "/host", sandboxPath: "/sandbox" },
-        false,
-      ),
+      formatVolumeMount({ hostPath: "/host", sandboxPath: "/sandbox" }, false),
     ).toBe("/host:/sandbox");
   });
 
   it("appends :z when selinuxLabel is 'z'", () => {
     expect(
-      formatVolumeMount(
-        { hostPath: "/host", sandboxPath: "/sandbox" },
-        "z",
-      ),
+      formatVolumeMount({ hostPath: "/host", sandboxPath: "/sandbox" }, "z"),
     ).toBe("/host:/sandbox:z");
   });
 
   it("appends :Z when selinuxLabel is 'Z'", () => {
     expect(
-      formatVolumeMount(
-        { hostPath: "/host", sandboxPath: "/sandbox" },
-        "Z",
-      ),
+      formatVolumeMount({ hostPath: "/host", sandboxPath: "/sandbox" }, "Z"),
     ).toBe("/host:/sandbox:Z");
   });
 
@@ -652,7 +643,7 @@ describe("processFileMountParents", () => {
     ];
     expect(() =>
       processFileMountParents(mounts, sandboxHomedir, fileStatFn),
-    ).toThrow(/parent directory.*\/opt\/foo.*outside the agent home/i);
+    ).toThrow(/parent directory.*\/opt\/foo.*outside the sandbox home/i);
   });
 
   it("error message includes remediation guidance", () => {
@@ -729,11 +720,7 @@ describe("processFileMountParents", () => {
         sandboxPath: "/home/agent/.codex/missing",
       },
     ];
-    const result = processFileMountParents(
-      mounts,
-      sandboxHomedir,
-      throwStatFn,
-    );
+    const result = processFileMountParents(mounts, sandboxHomedir, throwStatFn);
     expect(result).toEqual([]);
   });
 

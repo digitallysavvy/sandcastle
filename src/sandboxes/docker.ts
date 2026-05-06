@@ -35,6 +35,7 @@ import {
 export interface DockerOptions {
   /** Docker image name (default: derived from repo directory name). */
   readonly imageName?: string;
+  /**
    * The UID of the `agent` user inside the container image (default: host UID via `process.getuid()`, or 1000).
    *
    * Must match the UID baked into the image at build time. Used as the `--user` flag value
@@ -121,10 +122,8 @@ export const docker = (options?: DockerOptions): SandboxProvider => {
       const imageName =
         configuredImageName ?? defaultImageName(createOptions.hostRepoPath);
 
-      const containerUid =
-        options?.containerUid ?? process.getuid?.() ?? 1000;
-      const containerGid =
-        options?.containerGid ?? process.getgid?.() ?? 1000;
+      const containerUid = options?.containerUid ?? process.getuid?.() ?? 1000;
+      const containerGid = options?.containerGid ?? process.getgid?.() ?? 1000;
 
       // Pre-flight: verify image exists and UID matches
       await checkImageUid(imageName, containerUid);
@@ -160,7 +159,10 @@ export const docker = (options?: DockerOptions): SandboxProvider => {
               containerName,
               "sh",
               "-c",
-              `mkdir -p "${dir}" && chown ${hostUid}:${hostGid} "${dir}"`,
+              `mkdir -p "$1" && chown "$2" "$1"`,
+              "sh",
+              dir,
+              `${containerUid}:${containerGid}`,
             ],
             (error) => {
               if (error) {

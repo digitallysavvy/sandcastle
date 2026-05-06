@@ -511,9 +511,7 @@ describe("podman()", () => {
     // Verify no chown exec call was made
     const chownCall = mockExecFile.mock.calls.find(
       ([cmd, args]) =>
-        cmd === "podman" &&
-        Array.isArray(args) &&
-        args.includes("chown"),
+        cmd === "podman" && Array.isArray(args) && args.includes("chown"),
     );
     expect(chownCall).toBeUndefined();
 
@@ -662,11 +660,13 @@ describe("podman()", () => {
     // Should run as root
     expect(mkdirArgs).toContain("--user");
     expect(mkdirArgs[mkdirArgs.indexOf("--user") + 1]).toBe("0:0");
-    // Should target /home/agent/.codex with container UID
-    const shCmd = mkdirArgs[mkdirArgs.length - 1]!;
+    // Script body is fixed; the dir and uid:gid are passed as argv after `sh`
+    const shCmdIdx = mkdirArgs.indexOf("-c");
+    const shCmd = mkdirArgs[shCmdIdx + 1]!;
     expect(shCmd).toContain("mkdir -p");
-    expect(shCmd).toContain("/home/agent/.codex");
-    expect(shCmd).toContain("chown 1000:1000");
+    expect(shCmd).toContain("chown");
+    expect(mkdirArgs).toContain("/home/agent/.codex");
+    expect(mkdirArgs).toContain("1000:1000");
 
     unlinkSync(tmpFile);
     rmdirSync(tmpDir);
@@ -696,9 +696,7 @@ describe("podman()", () => {
         cmd === "podman" &&
         Array.isArray(args) &&
         args[0] === "exec" &&
-        args.some(
-          (a: string) => typeof a === "string" && a.includes("mkdir"),
-        ),
+        args.some((a: string) => typeof a === "string" && a.includes("mkdir")),
     );
     expect(mkdirCall).toBeUndefined();
 
@@ -712,11 +710,9 @@ describe("podman()", () => {
 
     expect(() =>
       podman({
-        mounts: [
-          { hostPath: tmpFile, sandboxPath: "/opt/foo/config.json" },
-        ],
+        mounts: [{ hostPath: tmpFile, sandboxPath: "/opt/foo/config.json" }],
       }),
-    ).toThrow(/outside the agent home directory/);
+    ).toThrow(/outside the sandbox home directory/);
 
     unlinkSync(tmpFile);
     rmdirSync(tmpDir);

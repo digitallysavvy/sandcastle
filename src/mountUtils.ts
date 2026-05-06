@@ -362,7 +362,7 @@ export const processFileMountParents = (
     if (!parentDir.startsWith(sandboxHomedir + "/")) {
       throw new Error(
         `Cannot mount file to '${mount.sandboxPath}': ` +
-          `parent directory '${parentDir}' is outside the agent home directory ('${sandboxHomedir}'). ` +
+          `parent directory '${parentDir}' is outside the sandbox home directory ('${sandboxHomedir}'). ` +
           `Mount the parent directory instead, or rebuild the image with '${parentDir}' pre-created.`,
       );
     }

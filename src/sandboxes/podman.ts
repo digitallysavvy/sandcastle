@@ -202,7 +202,10 @@ export const podman = (options?: PodmanOptions): SandboxProvider => {
               containerName,
               "sh",
               "-c",
-              `mkdir -p "${dir}" && chown ${containerUid}:${containerGid} "${dir}"`,
+              `mkdir -p "$1" && chown "$2" "$1"`,
+              "sh",
+              dir,
+              `${containerUid}:${containerGid}`,
             ],
             (error) => {
               if (error) {
@@ -435,4 +438,3 @@ const checkPodmanMachine = (): Promise<void> =>
       },
     );
   });
-

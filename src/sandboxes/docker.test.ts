@@ -503,11 +503,12 @@ describe("docker()", () => {
     // Should run as root
     expect(mkdirArgs).toContain("--user");
     expect(mkdirArgs[mkdirArgs.indexOf("--user") + 1]).toBe("0:0");
-    // Should target /home/agent/.codex
-    const shCmd = mkdirArgs[mkdirArgs.length - 1]!;
+    // Script body is fixed; the dir and uid:gid are passed as argv after `sh`
+    const shCmdIdx = mkdirArgs.indexOf("-c");
+    const shCmd = mkdirArgs[shCmdIdx + 1]!;
     expect(shCmd).toContain("mkdir -p");
-    expect(shCmd).toContain("/home/agent/.codex");
     expect(shCmd).toContain("chown");
+    expect(mkdirArgs).toContain("/home/agent/.codex");
 
     unlinkSync(tmpFile);
     rmdirSync(tmpDir);
@@ -537,9 +538,7 @@ describe("docker()", () => {
         cmd === "docker" &&
         Array.isArray(args) &&
         args[0] === "exec" &&
-        args.some(
-          (a: string) => typeof a === "string" && a.includes("mkdir"),
-        ),
+        args.some((a: string) => typeof a === "string" && a.includes("mkdir")),
     );
     expect(mkdirCall).toBeUndefined();
 
@@ -553,11 +552,9 @@ describe("docker()", () => {
 
     expect(() =>
       docker({
-        mounts: [
-          { hostPath: tmpFile, sandboxPath: "/opt/foo/config.json" },
-        ],
+        mounts: [{ hostPath: tmpFile, sandboxPath: "/opt/foo/config.json" }],
       }),
-    ).toThrow(/outside the agent home directory/);
+    ).toThrow(/outside the sandbox home directory/);
 
     unlinkSync(tmpFile);
     rmdirSync(tmpDir);
