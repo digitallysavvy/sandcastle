@@ -33,13 +33,22 @@ For a JSON stream, we want to extract:
 - **Tool calls** — name + a single display arg (we currently show `Bash`, `WebSearch`, `WebFetch`, `Agent`; see `TOOL_ARG_FIELDS`).
 - **Final result** — the agent's last message, used for orchestration.
 - **Errors** — note whether the CLI emits errors on stdout vs. stderr. Codex and Pi emit auth/rate-limit errors as JSON events on stdout; we capture those as `result` events so they surface to the user.
-- **Session ID** (optional) — only needed if the agent supports resume.
+- **Session ID.** A stable per-run identifier emitted in the stream output and accepted back by a resume CLI flag. Required — see [Resume support](#resume-support-required) below.
+
+### Must-have resume capabilities
+
+Resume support is a hard requirement for new **agent providers** ([ADR 0012](../adr/0012-agent-provider-owned-session-storage.md)). The agent's CLI must satisfy:
+
+- **Resume-by-session-ID flag.** A flag that takes a previously emitted session ID and continues that session (e.g. `claude --resume <id>`, `codex exec resume <id>`, `pi --session <id>`, `opencode run --session <id>`).
+- **Session-ID round-trip stability.** The session ID emitted in the stream during a fresh run is the same string the resume flag accepts back. If the CLI mints a new ID per invocation but only persists the file/row, resume cannot work — verify the round-trip empirically before starting implementation.
+- **Persisted session storage.** The agent writes its conversation record somewhere addressable by session ID — a JSONL file, a SQLite row, etc. — so Sandcastle can transfer it between **host** and **sandbox**.
+
+If any of these is missing, the agent likely cannot be supported until its CLI changes.
 
 ### Optional capabilities
 
 These unlock extra Sandcastle features but are not required:
 
-- **Resume by session ID.** A `--resume <id>` flag that lets the agent continue a previous session. Today only Claude Code uses this; it powers session continuation in `run()`.
 - **Per-iteration token usage.** Tokens reported in the session log (input, output, cache create, cache read). Today only Claude Code; powers the usage display.
 - **Interactive mode.** A separate invocation form for human use (`interactive()`). If the agent has a TUI, expose it via `buildInteractiveArgs`.
 
@@ -60,6 +69,11 @@ interface AgentProvider {
   name: string;
   env: Record<string, string>;
   captureSessions: boolean;
+  sessionStorage: {
+    hostStore(cwd: string): SessionStore;
+    sandboxStore(cwd: string, handle: BindMountSandboxHandle): SessionStore;
+    transfer(from: SessionStore, to: SessionStore, id: string): Promise<void>;
+  };
   buildPrintCommand(options: AgentCommandOptions): PrintCommand;
   buildInteractiveArgs?(options: AgentCommandOptions): string[];
   parseStreamLine(line: string): ParsedStreamEvent[];
@@ -71,11 +85,41 @@ Field by field:
 
 - `name` — short identifier (e.g. `"claude-code"`, `"codex"`). Used in logs and config.
 - `env` — environment variables injected into the **sandbox** when this agent runs. Auth keys live here. Merged with the env resolver and **sandbox provider** env at launch.
-- `captureSessions` — when `true`, Sandcastle records the agent's session log. Default: `true` for Claude Code, `false` for everything else. Only set `true` if the agent writes a parseable session file we can read back.
-- `buildPrintCommand({ prompt, dangerouslySkipPermissions, resumeSession })` — returns the shell command to run the agent non-interactively. Return `{ command, stdin }` when piping the prompt via stdin (preferred for large prompts).
+- `captureSessions` — user-facing kill-switch. When `true` (default), Sandcastle records the agent's session log per **iteration** and is able to resume it. Expose this on the provider's `Options` interface so users can opt out.
+- `sessionStorage` — provider-owned factories that describe where and how the agent's session record is persisted ([ADR 0012](../adr/0012-agent-provider-owned-session-storage.md)). The provider supplies `hostStore` (reads/writes session content on the **host**), `sandboxStore` (the same, inside the **sandbox** via the bind-mount handle), and `transfer` (copies a session between two stores, applying any format-specific content rewriting — e.g. Claude Code rewrites the `cwd` field in each JSONL entry from source-cwd to target-cwd). For file-backed agents (JSONL, single file per session), the stores wrap a directory + filename convention. For non-file backends (e.g. SQLite), the stores wrap whatever access primitive fits.
+- `buildPrintCommand({ prompt, dangerouslySkipPermissions, resumeSession })` — returns the shell command to run the agent non-interactively. Return `{ command, stdin }` when piping the prompt via stdin (preferred for large prompts). When `resumeSession` is set, append the agent's native resume CLI flag.
 - `buildInteractiveArgs(options)` — optional. Returns the argv array for `interactive()`. Omit if the agent has no TUI.
-- `parseStreamLine(line)` — given one line of stdout, return zero or more `ParsedStreamEvent`s. Event types: `text`, `result`, `tool_call`, `session_id`. Return `[]` for lines you can't or don't need to parse.
+- `parseStreamLine(line)` — given one line of stdout, return zero or more `ParsedStreamEvent`s. Event types: `text`, `result`, `tool_call`, `session_id`. Return `[]` for lines you can't or don't need to parse. **Emitting `session_id` is required** — without it, Sandcastle cannot capture the session for resume.
 - `parseSessionUsage(content)` — optional. Given the session log content, return token usage for the most recent iteration. Currently only Claude Code implements this.
+
+### `SessionStore`
+
+Defined in [`src/SessionStore.ts`](../../src/SessionStore.ts).
+
+```ts
+interface SessionStore {
+  readonly cwd: string;
+  exists(id: string): Promise<boolean>;
+  sessionFilePath(id: string): string | undefined;
+  readSession(id: string): Promise<string>;
+  writeSession(id: string, content: string): Promise<void>;
+}
+```
+
+- `exists(id)` — pre-flight check used by `run()` and `createWorktree()` to validate `resumeSession` before launching.
+- `sessionFilePath(id)` — the on-disk path of the session, surfaced to callers via `OrchestrateResult.sessionFilePath`. Return `undefined` for non-file-backed stores (e.g. SQLite).
+- `readSession(id)` / `writeSession(id, content)` — read/write the session content as an opaque string. For JSONL agents, this is the file contents. For SQLite-backed agents, serialise the relevant row(s) to a string the same store can round-trip back.
+
+## Resume support (required)
+
+Every new **agent provider** must wire resume end-to-end. The four pieces:
+
+1. **`parseStreamLine` emits `session_id` events.** Identify the event in your agent's stream that carries the session ID and emit `{ type: "session_id", sessionId }`. Test this with a representative captured stream line.
+2. **`buildPrintCommand` honours `resumeSession`.** When the option is set, append the agent's native resume CLI flag to the command. Verify the flag composes with `--print` / `--json` / `--model` and any other flags you pass.
+3. **`captureSessions: true` by default.** Set this in the factory; expose `captureSessions?: boolean` on the provider's `Options` interface for users who want to opt out.
+4. **`sessionStorage` sub-object populated.** Supply factories that read/write the agent's session record on **host** and inside the **sandbox**, plus a `transfer` op that copies between them. If the agent's format embeds the working directory (Claude Code's JSONL has a `cwd` field per entry), apply the rewrite inside `transfer`.
+
+Before writing code, **verify session-ID round-trip stability empirically**: run the agent, capture the session ID it emits, then invoke the agent with the resume flag pointing at that ID. If the agent treats the ID as opaque and continues the conversation, you're good. If it mints a new ID and ignores the requested one, or if the ID emitted to the stream is different from the one persisted to disk, the agent's CLI cannot support resume as-is.
 
 ### Patterns to follow
 
@@ -106,9 +150,13 @@ And a Dockerfile constant alongside the existing ones. Use `CLAUDE_CODE_DOCKERFI
 
 For a new agent provider `foo`:
 
-- [ ] Factory `foo()` in [`src/AgentProvider.ts`](../../src/AgentProvider.ts), with options interface `FooOptions`.
-- [ ] Stream-parsing helper `parseFooStreamLine`.
-- [ ] Tests in `src/AgentProvider.test.ts` covering `buildPrintCommand`, `buildInteractiveArgs`, and stream parsing — including error events on stdout if applicable.
+- [ ] Verify session-ID round-trip stability empirically (see [Resume support](#resume-support-required)).
+- [ ] Factory `foo()` in [`src/AgentProvider.ts`](../../src/AgentProvider.ts), with options interface `FooOptions` (including `captureSessions?: boolean`).
+- [ ] Stream-parsing helper `parseFooStreamLine` that emits `session_id` events alongside `text` / `result` / `tool_call`.
+- [ ] `sessionStorage` sub-object on the factory's return value, with `hostStore`, `sandboxStore`, and `transfer` factories specific to `foo`'s on-disk (or SQLite, etc.) layout.
+- [ ] `buildPrintCommand` honours `resumeSession` by appending `foo`'s native resume CLI flag.
+- [ ] Tests in `src/AgentProvider.test.ts` covering `buildPrintCommand` (both fresh and resume forms), `buildInteractiveArgs`, and stream parsing — including session-ID extraction and error events on stdout if applicable.
+- [ ] Tests covering `sessionStorage` round-trip: write, read, transfer host↔sandbox, content preserved (and rewritten correctly if `foo`'s format requires it).
 - [ ] Public export from [`src/index.ts`](../../src/index.ts): the `foo` factory and the `FooOptions` type.
 - [ ] `AGENT_REGISTRY` entry in [`src/InitService.ts`](../../src/InitService.ts).
 - [ ] `FOO_DOCKERFILE` constant in `src/InitService.ts`.
