@@ -25,11 +25,6 @@ ARG AGENT_GID=1000
 RUN groupmod -g $AGENT_GID node && usermod -u $AGENT_UID -g $AGENT_GID -d /home/agent -m -l agent node
 USER ${AGENT_UID}:${AGENT_GID}
 
-# Pre-create standard agent config directories so single-file bind mounts
-# (e.g. ~/.codex/auth.json) land in dirs owned by the agent user. Without
-# this, Docker auto-creates the parent dir as root and the agent gets EACCES.
-RUN mkdir -p /home/agent/.codex /home/agent/.claude /home/agent/.gemini /home/agent/.config
-
 # Install Claude Code CLI
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
